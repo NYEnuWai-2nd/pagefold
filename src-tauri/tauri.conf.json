@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "app",
+  "productName": "Pagefold",
   "version": "0.1.0",
-  "identifier": "com.nyuhe.app",
+  "identifier": "io.github.pagefold.app",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -13,9 +13,11 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "app",
-        "width": 800,
-        "height": 600
+        "title": "Pagefold",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 800,
+        "minHeight": 560
       }
     ],
     "security": {
