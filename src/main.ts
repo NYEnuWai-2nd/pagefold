@@ -21,6 +21,7 @@ import {
   clearSelection,
   createInitialState,
   deleteSelected,
+  getReferencedSourceIds,
   moveSelectionBy,
   redo,
   removeSource,
@@ -92,19 +93,19 @@ const btnShortcutsClose = getEl<HTMLButtonElement>('btn-shortcuts-close');
 const grid = new PageGridController(pageGridEl, loadedSources, {
   onSelectOne: (uid) => {
     selectOne(state, uid);
-    renderUI();
+    renderSelectionUI();
   },
   onToggleSelect: (uid) => {
     toggleSelect(state, uid);
-    renderUI();
+    renderSelectionUI();
   },
   onSelectRange: (uid) => {
     selectRange(state, uid);
-    renderUI();
+    renderSelectionUI();
   },
   onClearSelection: () => {
     clearSelection(state);
-    renderUI();
+    renderSelectionUI();
   },
   onReorder: (targetIndex) => {
     if (reorderSelection(state, targetIndex)) {
@@ -197,12 +198,6 @@ function renderSidebar(): void {
     removeBtn.setAttribute('aria-label', `${tr.removeSourceTooltip}: ${src.name}`);
     removeBtn.addEventListener('click', () => {
       if (removeSource(state, src.id)) {
-        const loaded = loadedSources.get(src.id);
-        if (loaded) {
-          disposeLoadedSource(loaded);
-          loadedSources.delete(src.id);
-        }
-        grid.clearThumbnailCacheForSource(src.id);
         renderUI();
       }
     });
@@ -212,7 +207,18 @@ function renderSidebar(): void {
   }
 }
 
-function renderUI(): void {
+function pruneUnreferencedSources(): void {
+  const referenced = getReferencedSourceIds(state);
+  for (const [id, loaded] of loadedSources.entries()) {
+    if (!referenced.has(id)) {
+      disposeLoadedSource(loaded);
+      loadedSources.delete(id);
+      grid.clearThumbnailCacheForSource(id);
+    }
+  }
+}
+
+function updateToolbarAndStatus(): void {
   const tr = t();
   const hasPages = state.pages.length > 0;
   const hasSelection = state.selectedUids.size > 0;
@@ -231,7 +237,16 @@ function renderUI(): void {
 
   statusSelectionEl.textContent = hasSelection ? tr.selectedCount(state.selectedUids.size) : '';
   statusTotalEl.textContent = hasPages ? tr.totalPages(state.pages.length) : '';
+}
 
+function renderSelectionUI(): void {
+  updateToolbarAndStatus();
+  grid.updateSelection(state.selectedUids);
+}
+
+function renderUI(): void {
+  pruneUnreferencedSources();
+  updateToolbarAndStatus();
   renderSidebar();
   grid.render(state.pages, state.sources, state.selectedUids);
 }
@@ -516,7 +531,7 @@ window.addEventListener('keydown', (e: KeyboardEvent) => {
       return;
     }
     clearSelection(state);
-    renderUI();
+    renderSelectionUI();
     return;
   }
 
@@ -536,7 +551,7 @@ window.addEventListener('keydown', (e: KeyboardEvent) => {
   if (mod && e.key.toLowerCase() === 'a') {
     e.preventDefault();
     selectAll(state);
-    renderUI();
+    renderSelectionUI();
     return;
   }
 

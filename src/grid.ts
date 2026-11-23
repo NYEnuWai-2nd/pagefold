@@ -36,11 +36,14 @@ export class PageGridController {
     pointerId: number;
     startX: number;
     startY: number;
+    lastX: number;
+    lastY: number;
     active: boolean;
     targetIndex: number | null;
     ghostEl: HTMLElement | null;
     markerEl: HTMLElement | null;
     cardRects: Array<{ index: number; rect: DOMRect }>;
+    autoScrollRaf: number | null;
   } | null = null;
 
   constructor(
@@ -125,11 +128,15 @@ export class PageGridController {
       this.activeRenders += 1;
       const canvas = document.createElement('canvas');
       renderPdfThumbnail(loaded, job.pageIndex, canvas, 180)
-        .then(() => {
-          const dataUrl = canvas.toDataURL('image/png');
-          this.thumbCache.set(job.key, dataUrl);
+        .then(() => canvasToJpegUrl(canvas))
+        .then((blobUrl) => {
+          const prev = this.thumbCache.get(job.key);
+          if (prev && prev !== blobUrl) {
+            URL.revokeObjectURL(prev);
+          }
+          this.thumbCache.set(job.key, blobUrl);
           if (job.imgEl.isConnected) {
-            job.imgEl.src = dataUrl;
+            job.imgEl.src = blobUrl;
             job.stageEl.classList.add('is-loaded');
           }
         })
@@ -145,10 +152,22 @@ export class PageGridController {
 
   public clearThumbnailCacheForSource(sourceId: string): void {
     const prefix = `${sourceId}:`;
-    for (const key of this.thumbCache.keys()) {
+    for (const [key, url] of this.thumbCache.entries()) {
       if (key.startsWith(prefix)) {
+        URL.revokeObjectURL(url);
         this.thumbCache.delete(key);
       }
+    }
+  }
+
+  public updateSelection(selectedUids: Set<string>): void {
+    this.selectedUids = selectedUids;
+    const cards = this.container.querySelectorAll<HTMLElement>('.page-card');
+    for (const card of cards) {
+      const uid = card.dataset.uid ?? '';
+      const isSelected = selectedUids.has(uid);
+      card.classList.toggle('is-selected', isSelected);
+      card.setAttribute('aria-selected', isSelected ? 'true' : 'false');
     }
   }
 
@@ -192,6 +211,9 @@ export class PageGridController {
       img.className = 'thumb-img';
       img.alt = `${srcInfo?.name ?? 'Page'} ${page.pageIndex + 1}`;
       img.draggable = false;
+      if (page.rotation === 90 || page.rotation === 270) {
+        img.classList.add('is-quarter-rotated');
+      }
       if (page.rotation !== 0) {
         img.style.transform = `rotate(${page.rotation}deg)`;
       }
@@ -268,17 +290,33 @@ export class PageGridController {
         pointerId: e.pointerId,
         startX: e.clientX,
         startY: e.clientY,
+        lastX: e.clientX,
+        lastY: e.clientY,
         active: false,
         targetIndex: null,
         ghostEl: null,
         markerEl: null,
         cardRects: [],
+        autoScrollRaf: null,
       };
     });
+
+    const scrollContainer = this.container.parentElement;
+    if (scrollContainer) {
+      scrollContainer.addEventListener('scroll', () => {
+        const ds = this.dragState;
+        if (!ds || !ds.active) return;
+        this.refreshCardRects(ds);
+        this.updateDrag(ds, ds.lastX, ds.lastY);
+      });
+    }
 
     window.addEventListener('pointermove', (e: PointerEvent) => {
       const ds = this.dragState;
       if (!ds || e.pointerId !== ds.pointerId) return;
+
+      ds.lastX = e.clientX;
+      ds.lastY = e.clientY;
 
       const dx = e.clientX - ds.startX;
       const dy = e.clientY - ds.startY;
@@ -288,6 +326,7 @@ export class PageGridController {
       }
 
       this.updateDrag(ds, e.clientX, e.clientY);
+      this.ensureAutoScroll(ds);
     });
 
     window.addEventListener('pointerup', (e: PointerEvent) => {
@@ -408,11 +447,81 @@ export class PageGridController {
     }
   }
 
+  private refreshCardRects(ds: NonNullable<PageGridController['dragState']>): void {
+    const cards = Array.from(this.container.querySelectorAll<HTMLElement>('.page-card'));
+    ds.cardRects = cards.map((el, index) => ({
+      index,
+      rect: el.getBoundingClientRect(),
+    }));
+  }
+
+  private ensureAutoScroll(ds: NonNullable<PageGridController['dragState']>): void {
+    if (ds.autoScrollRaf !== null) return;
+    const scrollContainer = this.container.parentElement;
+    if (!scrollContainer) return;
+
+    const step = () => {
+      const current = this.dragState;
+      if (!current || !current.active || current !== ds) {
+        ds.autoScrollRaf = null;
+        return;
+      }
+
+      const rect = scrollContainer.getBoundingClientRect();
+      const edge = 48;
+      let delta = 0;
+      if (current.lastY < rect.top + edge) {
+        const ratio = Math.min(1, Math.max(0, (rect.top + edge - current.lastY) / edge));
+        delta = -Math.ceil(4 + ratio * 14);
+      } else if (current.lastY > rect.bottom - edge) {
+        const ratio = Math.min(1, Math.max(0, (current.lastY - (rect.bottom - edge)) / edge));
+        delta = Math.ceil(4 + ratio * 14);
+      }
+
+      if (delta !== 0) {
+        const prevTop = scrollContainer.scrollTop;
+        scrollContainer.scrollTop += delta;
+        if (scrollContainer.scrollTop !== prevTop) {
+          this.refreshCardRects(current);
+          this.updateDrag(current, current.lastX, current.lastY);
+        }
+        ds.autoScrollRaf = requestAnimationFrame(step);
+      } else {
+        ds.autoScrollRaf = null;
+      }
+    };
+
+    const rect = scrollContainer.getBoundingClientRect();
+    if (ds.lastY < rect.top + 48 || ds.lastY > rect.bottom - 48) {
+      ds.autoScrollRaf = requestAnimationFrame(step);
+    }
+  }
+
   private endDrag(ds: NonNullable<PageGridController['dragState']>): void {
+    if (ds.autoScrollRaf !== null) {
+      cancelAnimationFrame(ds.autoScrollRaf);
+      ds.autoScrollRaf = null;
+    }
     ds.ghostEl?.remove();
     ds.markerEl?.remove();
     for (const el of this.container.querySelectorAll<HTMLElement>('.page-card.is-dragging')) {
       el.classList.remove('is-dragging');
     }
   }
+}
+
+function canvasToJpegUrl(canvas: HTMLCanvasElement): Promise<string> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          reject(new Error('Failed to encode thumbnail'));
+          return;
+        }
+        resolve(URL.createObjectURL(blob));
+      },
+      'image/jpeg',
+      0.85
+    );
+  });
 }

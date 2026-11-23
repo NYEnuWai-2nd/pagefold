@@ -496,6 +496,7 @@ input {
   position: relative;
   width: 100%;
   aspect-ratio: 1 / 1.28;
+  container-type: size;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -524,6 +525,11 @@ input {
   background: #ffffff;
   transition: transform 160ms ease;
   pointer-events: none;
+}
+
+.thumb-img.is-quarter-rotated {
+  max-width: 92cqh;
+  max-height: 92cqw;
 }
 
 .rotation-badge {

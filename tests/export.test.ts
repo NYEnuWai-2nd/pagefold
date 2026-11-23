@@ -1,4 +1,4 @@
-import { PDFDocument, degrees } from 'pdf-lib';
+import { PDFDocument, StandardFonts, degrees } from 'pdf-lib';
 import { describe, expect, it } from 'vitest';
 import { exportPagesToPdf, loadPdfSource, type LoadedSource } from '../src/pdf.ts';
 import {
@@ -77,5 +77,57 @@ describe('exportPagesToPdf', () => {
 
     expect(outDoc.getTitle()).toBe('Lease Agreement');
     expect(outDoc.getAuthor()).toBe('Bob');
+  });
+
+  it('keeps order and normalized rotation across 2 sources in mixed order', async () => {
+    const docA = await PDFDocument.create();
+    docA.addPage([210, 300]); // A0
+    const a1 = docA.addPage([220, 300]); // A1
+    a1.setRotation(degrees(270));
+
+    const docB = await PDFDocument.create();
+    const b0 = docB.addPage([310, 400]); // B0
+    b0.setRotation(degrees(90));
+    docB.addPage([320, 400]); // B1
+
+    const loadedA = await loadPdfSource('a.pdf', await docA.save(), { withPreview: false });
+    const loadedB = await loadPdfSource('b.pdf', await docB.save(), { withPreview: false });
+    const sourcesMap = new Map<string, LoadedSource>([
+      ['a', loadedA],
+      ['b', loadedB],
+    ]);
+
+    const pages = [
+      { uid: '1', sourceId: 'a', pageIndex: 1, rotation: 180 as const }, // 270 + 180 = 450 -> 90
+      { uid: '2', sourceId: 'b', pageIndex: 0, rotation: 270 as const }, // 90 + 270 = 360 -> 0
+      { uid: '3', sourceId: 'a', pageIndex: 0, rotation: 90 as const },  // 0 + 90 -> 90
+      { uid: '4', sourceId: 'b', pageIndex: 1, rotation: 0 as const },   // 0 -> 0
+    ];
+
+    const outBytes = await exportPagesToPdf(pages, sourcesMap, { stripMetadata: true });
+    const outDoc = await PDFDocument.load(outBytes);
+
+    expect(outDoc.getPageCount()).toBe(4);
+    expect([0, 1, 2, 3].map((i) => outDoc.getPage(i).getWidth())).toEqual([220, 310, 210, 320]);
+    expect([0, 1, 2, 3].map((i) => outDoc.getPage(i).getRotation().angle)).toEqual([90, 0, 90, 0]);
+  });
+
+  it('does not bloat output when exporting N pages from one source', async () => {
+    const srcDoc = await PDFDocument.create();
+    const font = await srcDoc.embedFont(StandardFonts.Helvetica);
+    const pageCount = 20;
+    for (let i = 0; i < pageCount; i++) {
+      const p = srcDoc.addPage([595, 842]);
+      p.drawText(`Page ${i + 1} - shared font test`, { x: 50, y: 780, size: 16, font });
+    }
+    const srcBytes = await srcDoc.save();
+    const loaded = await loadPdfSource('multi.pdf', srcBytes, { withPreview: false });
+    const sourcesMap = new Map<string, LoadedSource>([['s1', loaded]]);
+
+    const state = createInitialState();
+    addSource(state, { id: 's1', name: 'multi.pdf', kind: 'pdf', pageCount });
+
+    const outBytes = await exportPagesToPdf(state.pages, sourcesMap, { stripMetadata: true });
+    expect(outBytes.byteLength).toBeLessThan(srcBytes.byteLength * 2);
   });
 });

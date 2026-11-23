@@ -1,4 +1,4 @@
-import { PDFDocument, degrees } from 'pdf-lib';
+import { PDFDocument, degrees, type PDFPage } from 'pdf-lib';
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfjsWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import type { PageItem } from './state.ts';
@@ -105,7 +105,15 @@ export function loadImageSource(
 export function disposeLoadedSource(source: LoadedSource): void {
   if (source.kind === 'pdf') {
     if (source.pdfjsDoc) {
-      void source.pdfjsDoc.cleanup();
+      const doc = source.pdfjsDoc as unknown as {
+        destroy?: () => Promise<void>;
+        cleanup?: () => Promise<void>;
+      };
+      if (typeof doc.destroy === 'function') {
+        void doc.destroy();
+      } else if (typeof doc.cleanup === 'function') {
+        void doc.cleanup();
+      }
       source.pdfjsDoc = null;
     }
   } else if (source.objectUrl && typeof URL !== 'undefined') {
@@ -141,6 +149,9 @@ export async function renderPdfThumbnail(
     throw new Error('Could not get 2D canvas context');
   }
 
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
   await page.render({
     canvas,
     canvasContext: ctx,
@@ -148,6 +159,10 @@ export async function renderPdfThumbnail(
   }).promise;
 
   return { width: cssWidth, height: cssHeight };
+}
+
+function normalizeDegrees(deg: number): number {
+  return ((deg % 360) + 360) % 360;
 }
 
 const A4_PORTRAIT: [number, number] = [595.28, 841.89];
@@ -191,16 +206,42 @@ export async function exportPagesToPdf(
     }
   }
 
+  // Group page indices per PDF source so copyPages is called once per source
+  // (calling copyPages per page duplicates shared fonts/images).
+  const indicesBySource = new Map<string, number[]>();
+  const itemCopySlot = new Map<PageItem, number>();
+
   for (const item of pages) {
     const src = sources.get(item.sourceId);
     if (!src) {
       throw new Error(`Missing source ${item.sourceId}`);
     }
+    if (src.kind === 'pdf') {
+      let indices = indicesBySource.get(item.sourceId);
+      if (!indices) {
+        indices = [];
+        indicesBySource.set(item.sourceId, indices);
+      }
+      itemCopySlot.set(item, indices.length);
+      indices.push(item.pageIndex);
+    }
+  }
+
+  const copiedBySource = new Map<string, PDFPage[]>();
+  for (const [sourceId, indices] of indicesBySource) {
+    const src = sources.get(sourceId) as LoadedPdfSource;
+    const copiedPages = await outDoc.copyPages(src.pdfDoc, indices);
+    copiedBySource.set(sourceId, copiedPages);
+  }
+
+  for (const item of pages) {
+    const src = sources.get(item.sourceId)!;
 
     if (src.kind === 'pdf') {
-      const [copied] = await outDoc.copyPages(src.pdfDoc, [item.pageIndex]);
+      const slot = itemCopySlot.get(item)!;
+      const copied = copiedBySource.get(item.sourceId)![slot];
       const existingAngle = copied.getRotation().angle;
-      copied.setRotation(degrees(existingAngle + item.rotation));
+      copied.setRotation(degrees(normalizeDegrees(existingAngle + item.rotation)));
       outDoc.addPage(copied);
     } else {
       const embedded =
@@ -225,7 +266,7 @@ export async function exportPagesToPdf(
       });
 
       if (item.rotation !== 0) {
-        page.setRotation(degrees(item.rotation));
+        page.setRotation(degrees(normalizeDegrees(item.rotation)));
       }
     }
   }

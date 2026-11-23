@@ -297,3 +297,15 @@ export function redo(state: AppState): boolean {
   pruneSelection(state);
   return true;
 }
+
+export function getReferencedSourceIds(state: AppState): Set<string> {
+  const ids = new Set<string>();
+  for (const s of state.sources) ids.add(s.id);
+  for (const snap of state.past) {
+    for (const s of snap.sources) ids.add(s.id);
+  }
+  for (const snap of state.future) {
+    for (const s of snap.sources) ids.add(s.id);
+  }
+  return ids;
+}

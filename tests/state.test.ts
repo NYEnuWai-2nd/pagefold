@@ -6,6 +6,7 @@ import {
   clearSelection,
   createInitialState,
   deleteSelected,
+  getReferencedSourceIds,
   moveSelectionBy,
   redo,
   removeSource,
@@ -116,5 +117,32 @@ describe('state management', () => {
     expect(undo(state)).toBe(true);
     expect(state.sources.map((s) => s.id)).toEqual(['s1', 's2']);
     expect(state.pages.length).toBe(4);
+  });
+
+  it('tracks referenced source IDs across history for safe disposal', () => {
+    const state = createInitialState();
+    addSource(state, { id: 's1', name: 'a.pdf', kind: 'pdf', pageCount: 2 });
+    addSource(state, { id: 's2', name: 'b.pdf', kind: 'pdf', pageCount: 2 });
+
+    removeSource(state, 's1');
+    // Still referenced in past so undo can restore it
+    expect(getReferencedSourceIds(state).has('s1')).toBe(true);
+
+    // Undo restores s1, and s2 is still there
+    undo(state);
+    expect(getReferencedSourceIds(state).has('s1')).toBe(true);
+
+    // Redo removes s1 again, then a new edit clears future; wait — past still has s1 until
+    // we undo past removal or exceed history. If we undo removal, then make a new edit:
+    // Actually if we add s3, remove s3, undo, then rotate s1 -> s3 is dropped from future.
+    addSource(state, { id: 's3', name: 'c.pdf', kind: 'pdf', pageCount: 1 });
+    expect(getReferencedSourceIds(state).has('s3')).toBe(true);
+    undo(state);
+    // s3 is still in future
+    expect(getReferencedSourceIds(state).has('s3')).toBe(true);
+    // Mutate state so future is cleared
+    selectOne(state, state.pages[0].uid);
+    rotateSelected(state, 90);
+    expect(getReferencedSourceIds(state).has('s3')).toBe(false);
   });
 });
