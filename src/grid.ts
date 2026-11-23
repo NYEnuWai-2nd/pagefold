@@ -20,6 +20,7 @@ export class PageGridController {
   private callbacks: GridCallbacks;
   private thumbCache = new Map<string, string>();
   private observer: IntersectionObserver | null = null;
+  private resizeObserver: ResizeObserver | null = null;
   private renderQueue: Array<{
     key: string;
     sourceId: string;
@@ -58,7 +59,47 @@ export class PageGridController {
     this.sourcesMap = sourcesMap;
     this.callbacks = callbacks;
     this.setupObserver();
+    this.setupResizeObserver();
     this.setupContainerEvents();
+  }
+
+  public destroy(): void {
+    this.observer?.disconnect();
+    this.resizeObserver?.disconnect();
+    this.renderQueue = [];
+  }
+
+  private setupResizeObserver(): void {
+    if (typeof ResizeObserver === 'undefined') return;
+    this.resizeObserver = new ResizeObserver(() => {
+      this.syncAllAnnotationOverlays();
+    });
+  }
+
+  private syncThumbAnnotationOverlay(
+    stage: HTMLElement,
+    img: HTMLImageElement,
+    overlay: HTMLElement
+  ): void {
+    if (!img.isConnected || !stage.isConnected) return;
+    const sr = stage.getBoundingClientRect();
+    const ir = img.getBoundingClientRect();
+    if (sr.width <= 0 || ir.width <= 0) return;
+    overlay.style.left = `${ir.left - sr.left}px`;
+    overlay.style.top = `${ir.top - sr.top}px`;
+    overlay.style.width = `${ir.width}px`;
+    overlay.style.height = `${ir.height}px`;
+  }
+
+  private syncAllAnnotationOverlays(): void {
+    const overlays = this.container.querySelectorAll<HTMLElement>('.thumb-ann-overlay');
+    for (const overlay of overlays) {
+      const stage = overlay.parentElement;
+      if (!stage) continue;
+      const img = stage.querySelector<HTMLImageElement>('.thumb-img');
+      if (!img) continue;
+      this.syncThumbAnnotationOverlay(stage, img, overlay);
+    }
   }
 
   private setupObserver(): void {
@@ -183,6 +224,7 @@ export class PageGridController {
     this.sourceInfoMap = new Map(sources.map((s) => [s.id, s]));
 
     this.observer?.disconnect();
+    this.resizeObserver?.disconnect();
     this.renderQueue = [];
     this.container.replaceChildren();
 
@@ -281,16 +323,11 @@ export class PageGridController {
         stage.appendChild(annOverlay);
 
         const syncOverlay = (): void => {
-          if (!img.isConnected || !stage.isConnected) return;
-          const sr = stage.getBoundingClientRect();
-          const ir = img.getBoundingClientRect();
-          if (sr.width <= 0 || ir.width <= 0) return;
-          annOverlay.style.left = `${ir.left - sr.left}px`;
-          annOverlay.style.top = `${ir.top - sr.top}px`;
-          annOverlay.style.width = `${ir.width}px`;
-          annOverlay.style.height = `${ir.height}px`;
+          this.syncThumbAnnotationOverlay(stage, img, annOverlay);
         };
         img.addEventListener('load', syncOverlay);
+        this.resizeObserver?.observe(stage);
+        this.resizeObserver?.observe(img);
         requestAnimationFrame(syncOverlay);
       }
 
@@ -610,6 +647,8 @@ function buildThumbAnnotationOverlay(
       el.style.top = `${vp.y * 100}%`;
       el.style.color = ann.color;
       el.style.fontSize = `${Math.max(4, Math.round(ann.size * 0.25))}px`;
+      el.style.transformOrigin = '0 0';
+      el.style.transform = `rotate(${rotation}deg)`;
       el.textContent = ann.text;
     } else {
       const vr = toViewRect({ x: ann.x, y: ann.y, w: ann.w, h: ann.h }, rotation);

@@ -1,4 +1,11 @@
-import { clamp01, toPageCoords, toPageRect, toViewCoords, toViewRect } from './annotations.ts';
+import {
+  clamp01,
+  clampMoveOrigin,
+  toPageCoords,
+  toPageRect,
+  toViewCoords,
+  toViewRect,
+} from './annotations.ts';
 import type { Annotation, PageItem, Rotation } from './state.ts';
 
 export type AnnotationTool = 'select' | 'text' | 'rect' | 'highlight';
@@ -125,9 +132,12 @@ export class AnnotationEditor {
   public setTextSize(size: number): void {
     this.textSize = size;
     if (this.page && this.selectedAnnId) {
-      this.callbacks.onUpdate(this.page.uid, this.selectedAnnId, (ann) =>
-        ann.kind === 'text' ? { ...ann, size } : ann
-      );
+      const selected = this.page.annotations?.find((a) => a.id === this.selectedAnnId);
+      if (selected && selected.kind === 'text' && selected.size !== size) {
+        this.callbacks.onUpdate(this.page.uid, this.selectedAnnId, (ann) =>
+          ann.kind === 'text' ? { ...ann, size } : ann
+        );
+      }
     }
   }
 
@@ -184,6 +194,8 @@ export class AnnotationEditor {
         el.style.top = `${vp.y * 100}%`;
         el.style.color = ann.color;
         el.style.fontSize = `${Math.max(8, ann.size * ptScale)}px`;
+        el.style.transformOrigin = '0 0';
+        el.style.transform = `rotate(${this.viewRotation}deg)`;
         el.textContent = ann.text;
       } else {
         const vr = toViewRect({ x: ann.x, y: ann.y, w: ann.w, h: ann.h }, this.viewRotation);
@@ -294,6 +306,7 @@ export class AnnotationEditor {
     });
 
     ta.addEventListener('keydown', (e: KeyboardEvent) => {
+      if (e.isComposing || e.keyCode === 229) return;
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         e.stopPropagation();
@@ -454,8 +467,8 @@ export class AnnotationEditor {
       } else if (op.kind === 'move') {
         op.dx = (e.clientX - op.startX) / rect.width;
         op.dy = (e.clientY - op.startY) / rect.height;
-        const nx = clamp01(op.origViewX + op.dx);
-        const ny = clamp01(op.origViewY + op.dy);
+        const nx = clampMoveOrigin(op.origViewX + op.dx, op.viewW);
+        const ny = clampMoveOrigin(op.origViewY + op.dy, op.viewH);
         op.el.style.left = `${nx * 100}%`;
         op.el.style.top = `${ny * 100}%`;
       } else if (op.kind === 'resize') {
@@ -508,11 +521,12 @@ export class AnnotationEditor {
         this.callbacks.onAdd(this.page.uid, ann);
       } else if (op.kind === 'move') {
         if (!commit || !this.page || (Math.abs(op.dx) < 0.002 && Math.abs(op.dy) < 0.002)) {
-          this.render();
+          op.el.style.left = `${op.origViewX * 100}%`;
+          op.el.style.top = `${op.origViewY * 100}%`;
           return;
         }
-        const nx = clamp01(op.origViewX + op.dx);
-        const ny = clamp01(op.origViewY + op.dy);
+        const nx = clampMoveOrigin(op.origViewX + op.dx, op.viewW);
+        const ny = clampMoveOrigin(op.origViewY + op.dy, op.viewH);
         if (op.ann.kind === 'text') {
           const pt = toPageCoords({ x: nx, y: ny }, this.viewRotation);
           this.callbacks.onUpdate(this.page.uid, op.ann.id, (a) =>
@@ -529,7 +543,8 @@ export class AnnotationEditor {
         }
       } else if (op.kind === 'resize') {
         if (!commit || !this.page || (Math.abs(op.dx) < 0.002 && Math.abs(op.dy) < 0.002)) {
-          this.render();
+          op.el.style.width = `${op.origViewW * 100}%`;
+          op.el.style.height = `${op.origViewH * 100}%`;
           return;
         }
         const nw = Math.max(0.015, Math.min(1 - op.origViewX, op.origViewW + op.dx));

@@ -17,6 +17,11 @@ export function clamp01(value: number): number {
   return Math.max(0, Math.min(1, value));
 }
 
+export function clampMoveOrigin(pos: number, size: number): number {
+  const maxPos = Math.max(0, 1 - clamp01(size));
+  return Math.max(0, Math.min(maxPos, Number.isFinite(pos) ? pos : 0));
+}
+
 /**
  * Map a normalized point (0..1, origin top-left) from the rotated view space
  * back to the page's unrotated normalized space (0..1, origin top-left).

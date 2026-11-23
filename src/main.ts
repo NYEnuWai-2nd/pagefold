@@ -700,6 +700,7 @@ function openPreviewModal(uid: string, initialTool?: AnnotationTool): void {
 }
 
 function closePreviewModal(): void {
+  previewRenderSeq += 1;
   annEditor.setPage(null, 0, 595.28);
   previewModalEl.hidden = true;
   previewUid = null;
@@ -884,6 +885,7 @@ deskEl.addEventListener(
 
 // Keyboard shortcuts
 window.addEventListener('keydown', (e: KeyboardEvent) => {
+  if (e.isComposing || e.keyCode === 229) return;
   const target = e.target as HTMLElement | null;
   const isInput =
     target?.tagName === 'INPUT' ||

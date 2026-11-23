@@ -209,4 +209,36 @@ describe('state management', () => {
     expect(redo(state)).toBe(true);
     expect(state.pages[0].annotations?.length).toBe(1);
   });
+
+  it('skips pushHistory when updateAnnotation produces an identical annotation', () => {
+    const state = createInitialState();
+    addSource(state, { id: 's1', name: 'a.pdf', kind: 'pdf', pageCount: 1 });
+    const uid = state.pages[0].uid;
+
+    addAnnotation(state, uid, {
+      id: 'ann-text-1',
+      kind: 'text',
+      x: 0.2,
+      y: 0.3,
+      text: 'Hello',
+      size: 14,
+      color: '#1f1e1b',
+    });
+    const pastLenBefore = state.past.length;
+
+    expect(updateAnnotation(state, uid, 'ann-text-1', (a) => a)).toBe(false);
+    expect(
+      updateAnnotation(state, uid, 'ann-text-1', (a) =>
+        a.kind === 'text' ? { ...a, size: 14 } : a
+      )
+    ).toBe(false);
+    expect(state.past.length).toBe(pastLenBefore);
+
+    expect(
+      updateAnnotation(state, uid, 'ann-text-1', (a) =>
+        a.kind === 'text' ? { ...a, size: 18 } : a
+      )
+    ).toBe(true);
+    expect(state.past.length).toBe(pastLenBefore + 1);
+  });
 });

@@ -333,6 +333,17 @@ export function addAnnotation(state: AppState, uid: string, annotation: Annotati
   return true;
 }
 
+function shallowEqualAnnotation(a: Annotation, b: Annotation): boolean {
+  if (a === b) return true;
+  const keysA = Object.keys(a) as Array<keyof Annotation>;
+  const keysB = Object.keys(b) as Array<keyof Annotation>;
+  if (keysA.length !== keysB.length) return false;
+  for (const key of keysA) {
+    if (!Object.is(a[key], b[key])) return false;
+  }
+  return true;
+}
+
 export function updateAnnotation(
   state: AppState,
   uid: string,
@@ -343,8 +354,11 @@ export function updateAnnotation(
   if (!page || !page.annotations) return false;
   const idx = page.annotations.findIndex((a) => a.id === annotationId);
   if (idx === -1) return false;
+  const current = page.annotations[idx];
+  const updated = updater({ ...current });
+  if (shallowEqualAnnotation(current, updated)) return false;
   pushHistory(state);
-  page.annotations[idx] = updater({ ...page.annotations[idx] });
+  page.annotations[idx] = updated;
   return true;
 }
 

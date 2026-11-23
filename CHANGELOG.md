@@ -11,6 +11,9 @@ All notable changes to Pagefold will be documented in this file.
 - Lightweight thumbnail annotation overlays and pencil badge on annotated page cards.
 - Export support for rectangles, 35%-opacity highlights, and **real, selectable text annotations** (including Japanese) using an OS-installed system font (Yu Gothic / Hiragino / Noto CJK) with glyph subsetting (`@pdf-lib/fontkit`) and automatic high-DPI PNG fallback when no suitable font or glyph is available.
 
+### Fixed
+- Annotation editor and thumbnail overlays: preserved double-click-to-edit on text annotations, rotated text overlays to match exported PDF rotation, guarded IME composition in text/global key handlers, clamped moved rect/highlight origins to prevent edge shrinking, kept thumbnail annotation overlays synced via `ResizeObserver`, invalidated in-flight preview renders on modal close, and skipped no-op annotation undo history entries.
+
 ## [0.1.0] - 2026-11-23
 
 ### Added
