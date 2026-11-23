@@ -2,6 +2,13 @@
 
 All notable changes to Pagefold will be documented in this file.
 
+## [0.3.0] - 2026-11-23
+
+### Added
+- **More paper sizes** in the status-bar **Page size** selector: `A3`, `A5`, `B4 (JIS)`, `B5 (JIS)`, and `Legal`, alongside `Match first PDF page`, `A4`, `Letter`, and `Original size`, with per-page orientation matching and generalized `isFixedPaper` handling.
+- **Image compression on export** via the new **Compress** / **圧縮** status-bar selector (`Off`, `Light`, `Standard`, `Strong`), persisted in `localStorage` and translated EN/JA. Re-encodes embedded `DCTDecode` JPEG streams ≥100 KB (preserving `/SMask` and vector text while skipping CMYK, `/Decode`, `/ImageMask`, and non-JPEG/small streams).
+- **Export size summary toast** showing original source size sum vs. output PDF size and percentage delta (e.g. `Saved 12 pages · 14.2 MB → 3.1 MB (−78%)`).
+
 ## [0.2.0] - 2026-11-23
 
 ### Added

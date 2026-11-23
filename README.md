@@ -13,10 +13,11 @@ People routinely upload sensitive documents—tax returns, employment contracts,
 
 Pagefold is a ~10 MB double-click desktop app built with **Tauri v2**, **pdf-lib**, and **pdf.js** (with its worker bundled locally).
 
-## Features (v0.2)
+## Features (v0.3)
 
 - **Add PDFs & Images**: Drag and drop PDF, PNG, or JPEG files onto the desk (inserts at the drop position) or use the file picker.
-- **Page Size Normalization**: Choose **Page size** in the status bar when exporting: *Match first PDF page* (default, orientation matched to each image), *A4* / *Letter* (uniformly scales and centers all PDF and image pages while preserving vector content and rotation), or *Original size* (96 dpi for images).
+- **Page Size Normalization**: Choose **Page size** in the status bar when exporting: *Match first PDF page* (default, orientation matched to each image), *A3*, *A4*, *A5*, *B4 (JIS)*, *B5 (JIS)*, *Letter*, *Legal* (uniformly scales and centers all PDF and image pages while preserving vector content and rotation — e.g. unify scanned pages to A4 with margins), or *Original size* (96 dpi for images).
+- **Image Compression (Keeps Vector Text)**: Choose **Compress** in the status bar (`Off`, `Light`, `Standard`, `Strong`) to downscale and re-encode embedded JPEG images ≥100 KB on export/extract/split while keeping vector text selectable and crisp. Note: CMYK, JBIG2, and CCITT images are left as is. After saving, a toast shows the size comparison (e.g., `14.2 MB → 3.1 MB (−78%)`).
 - **Annotations (Text, Rectangle, Highlight)**: Press `E` or click the **Annotate** button (or open quick-look preview) to add text notes, rectangles, and highlights (35% opacity) with color swatches, text sizes (`10`–`32 pt`), drag-to-move, resize handles, and full Undo/Redo support. Annotated cards display a lightweight thumbnail overlay and pencil badge. Text annotations export as **real, selectable PDF text** using an OS-installed Japanese-capable system font (Yu Gothic / Hiragino / Noto CJK) with only the used glyphs embedded (subsetting), and automatically fall back to high-DPI image rendering if no suitable font is found or a glyph is missing.
 - **Visual Page Grid**: Crisp paper-sheet thumbnails rendered lazily with `IntersectionObserver` so even 300-page documents stay responsive. Resize thumbnails with the status-bar slider or `Ctrl+Wheel`. Source files are color-tagged in the sidebar (click a source to select all its pages).
 - **Quick-Look Preview**: Double-click any page or press `Space` to inspect it at full size, step with `←` / `→`, rotate with `R` / `Shift+R`, and annotate.
@@ -84,7 +85,6 @@ npm run tauri build -- --no-bundle
 - True redaction (flatten)
 - Insert blank page
 - Export pages as PNG
-- Compress / optimize PDF size
 - Local OCR
 - macOS and Linux release builds via GitHub Actions CI
 
