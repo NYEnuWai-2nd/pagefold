@@ -1,9 +1,11 @@
-import { PDFDocument, degrees, rgb, type PDFEmbeddedPage, type PDFPage } from 'pdf-lib';
+import fontkit from '@pdf-lib/fontkit';
+import { PDFDocument, degrees, rgb, type PDFEmbeddedPage, type PDFFont, type PDFPage } from 'pdf-lib';
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfjsWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { parseHexColor, renderTextAnnotationPng } from './annotations.ts';
 import { resolvePageSize, type PageSizeMode } from './pageSize.ts';
 import type { Annotation, PageItem } from './state.ts';
+import { loadSystemFont } from './systemFont.ts';
 
 export class EncryptedPdfError extends Error {
   constructor(fileName: string) {
@@ -203,6 +205,7 @@ export async function exportPagesToPdf(
   const outDoc = await PDFDocument.create({
     updateMetadata: !options.stripMetadata,
   });
+  outDoc.registerFontkit(fontkit);
 
   if (options.stripMetadata) {
     outDoc.setProducer('');
@@ -278,6 +281,9 @@ export async function exportPagesToPdf(
     }
   }
 
+  const hasTextAnnotations = pages.some((p) => p.annotations?.some((a) => a.kind === 'text'));
+  const textFontCtx = hasTextAnnotations ? await prepareTextFontContext(outDoc) : null;
+
   for (const item of pages) {
     const src = sources.get(item.sourceId)!;
 
@@ -319,7 +325,7 @@ export async function exportPagesToPdf(
         }
 
         if (item.annotations?.length) {
-          await drawAnnotationsOnPage(outDoc, page, item.annotations, annRegion);
+          await drawAnnotationsOnPage(outDoc, page, item.annotations, annRegion, textFontCtx);
         }
       } else {
         const copied = copiedBySource.get(item.sourceId)![slot];
@@ -329,12 +335,18 @@ export async function exportPagesToPdf(
 
         if (item.annotations?.length) {
           const { width, height } = copied.getSize();
-          await drawAnnotationsOnPage(outDoc, copied, item.annotations, {
-            x: 0,
-            y: 0,
-            width,
-            height,
-          });
+          await drawAnnotationsOnPage(
+            outDoc,
+            copied,
+            item.annotations,
+            {
+              x: 0,
+              y: 0,
+              width,
+              height,
+            },
+            textFontCtx
+          );
         }
       }
     } else {
@@ -367,12 +379,18 @@ export async function exportPagesToPdf(
       }
 
       if (item.annotations?.length) {
-        await drawAnnotationsOnPage(outDoc, page, item.annotations, {
-          x,
-          y,
-          width: drawWidth,
-          height: drawHeight,
-        });
+        await drawAnnotationsOnPage(
+          outDoc,
+          page,
+          item.annotations,
+          {
+            x,
+            y,
+            width: drawWidth,
+            height: drawHeight,
+          },
+          textFontCtx
+        );
       }
     }
   }
@@ -380,11 +398,52 @@ export async function exportPagesToPdf(
   return outDoc.save();
 }
 
+interface TextFontContext {
+  font: PDFFont;
+  supportsText: (text: string) => boolean;
+}
+
+async function prepareTextFontContext(outDoc: PDFDocument): Promise<TextFontContext | null> {
+  try {
+    const sysFont = await loadSystemFont();
+    if (!sysFont) return null;
+
+    const fkFont = fontkit.create(sysFont.bytes);
+    const glyphCache = new Map<number, boolean>();
+    const font = await outDoc.embedFont(sysFont.bytes, { subset: true });
+
+    const hasGlyph = (cp: number): boolean => {
+      let cached = glyphCache.get(cp);
+      if (cached === undefined) {
+        cached = fkFont.hasGlyphForCodePoint(cp);
+        glyphCache.set(cp, cached);
+      }
+      return cached;
+    };
+
+    const supportsText = (text: string): boolean => {
+      for (const ch of text) {
+        if (ch === '\n' || ch === '\r') continue;
+        const cp = ch.codePointAt(0);
+        if (cp === undefined || !hasGlyph(cp)) {
+          return false;
+        }
+      }
+      return true;
+    };
+
+    return { font, supportsText };
+  } catch {
+    return null;
+  }
+}
+
 async function drawAnnotationsOnPage(
   outDoc: PDFDocument,
   page: PDFPage,
   annotations: Annotation[],
-  region: { x: number; y: number; width: number; height: number }
+  region: { x: number; y: number; width: number; height: number },
+  textFontCtx: TextFontContext | null
 ): Promise<void> {
   for (const ann of annotations) {
     if (ann.kind === 'rect') {
@@ -417,17 +476,47 @@ async function drawAnnotationsOnPage(
         opacity: 0.35,
       });
     } else if (ann.kind === 'text') {
-      const rendered = await renderTextAnnotationPng(ann.text, ann.size, ann.color);
-      if (rendered) {
-        const embeddedText = await outDoc.embedPng(rendered.pngBytes);
-        const x = region.x + ann.x * region.width;
-        const y = region.y + region.height - ann.y * region.height - rendered.heightPt;
-        page.drawImage(embeddedText, {
-          x,
-          y,
-          width: rendered.widthPt,
-          height: rendered.heightPt,
-        });
+      let drewVectorText = false;
+      if (textFontCtx && ann.text && textFontCtx.supportsText(ann.text)) {
+        try {
+          const { r, g, b } = parseHexColor(ann.color);
+          const color = rgb(r, g, b);
+          const lines = ann.text.split(/\r?\n/);
+          const lineHeight = ann.size * 1.25;
+          const x = region.x + ann.x * region.width;
+          const top = region.y + region.height - ann.y * region.height;
+          const firstBaseline = top - ann.size * 0.88;
+
+          for (let i = 0; i < lines.length; i++) {
+            if (lines[i].length > 0) {
+              page.drawText(lines[i], {
+                x,
+                y: firstBaseline - i * lineHeight,
+                size: ann.size,
+                font: textFontCtx.font,
+                color,
+              });
+            }
+          }
+          drewVectorText = true;
+        } catch {
+          drewVectorText = false;
+        }
+      }
+
+      if (!drewVectorText) {
+        const rendered = await renderTextAnnotationPng(ann.text, ann.size, ann.color);
+        if (rendered) {
+          const embeddedText = await outDoc.embedPng(rendered.pngBytes);
+          const x = region.x + ann.x * region.width;
+          const y = region.y + region.height - ann.y * region.height - rendered.heightPt;
+          page.drawImage(embeddedText, {
+            x,
+            y,
+            width: rendered.widthPt,
+            height: rendered.heightPt,
+          });
+        }
       }
     }
   }

@@ -9,7 +9,7 @@ All notable changes to Pagefold will be documented in this file.
 - **Annotations** (Text, Rectangle, Highlight) inside the quick-look preview modal with tool palette (`V` / `T` / `B` / `H`), color swatches, text size (`10`–`32 pt`), move/resize handles, `Delete`, and main toolbar Edit button (`E`).
 - Undoable annotation state operations (`Ctrl+Z` / `Ctrl+Shift+Z` / `Ctrl+Y`) and rotation-aware normalized coordinate mapping (`toPageCoords` / `toViewCoords`).
 - Lightweight thumbnail annotation overlays and pencil badge on annotated page cards.
-- Export support for rectangles, 35%-opacity highlights, and 4× offscreen-canvas rendered text annotations (including Japanese). *(Known limitation in v0.2: text annotations are flattened as images on export.)*
+- Export support for rectangles, 35%-opacity highlights, and **real, selectable text annotations** (including Japanese) using an OS-installed system font (Yu Gothic / Hiragino / Noto CJK) with glyph subsetting (`@pdf-lib/fontkit`) and automatic high-DPI PNG fallback when no suitable font or glyph is available.
 
 ## [0.1.0] - 2026-11-23
 
