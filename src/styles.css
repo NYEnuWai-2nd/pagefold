@@ -1034,11 +1034,184 @@ kbd {
 .preview-canvas,
 .preview-img {
   max-width: 100%;
-  max-height: 78vh;
+  max-height: 74vh;
   width: auto !important;
   height: auto !important;
   object-fit: contain;
   background: #ffffff;
   border-radius: 3px;
   box-shadow: var(--shadow-card-hover);
+  display: block;
+}
+
+/* Annotation toolbar & overlay */
+.preview-ann-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 6px 14px;
+  border-bottom: 1px solid var(--border-hairline);
+  background: var(--bg-surface);
+}
+
+.ann-tool-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ann-tool-btn {
+  height: 26px;
+  padding: 0 9px;
+  font-size: 12px;
+}
+
+.ann-tool-btn.is-active {
+  background: var(--accent-tint);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.ann-color-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ann-swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  background: var(--swatch);
+  cursor: pointer;
+  padding: 0;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.2);
+}
+
+.ann-swatch.is-active {
+  border-color: var(--text-primary);
+  transform: scale(1.12);
+}
+
+.ann-size-label {
+  display: inline-flex;
+  align-items: center;
+}
+
+.preview-page-wrap {
+  position: relative;
+  display: inline-flex;
+  line-height: 0;
+}
+
+.preview-ann-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: hidden;
+  user-select: none;
+}
+
+.preview-ann-overlay[data-tool="text"] {
+  cursor: text;
+}
+
+.preview-ann-overlay[data-tool="rect"],
+.preview-ann-overlay[data-tool="highlight"] {
+  cursor: crosshair;
+}
+
+.ann-item {
+  position: absolute;
+  box-sizing: border-box;
+}
+
+.preview-ann-overlay[data-tool="select"] .ann-item {
+  cursor: move;
+}
+
+.ann-item.is-selected {
+  outline: 1.5px dashed var(--accent);
+  outline-offset: 2px;
+}
+
+.ann-item-text {
+  white-space: pre;
+  line-height: 1.25;
+  font-family: var(--font-sans);
+  padding: 0;
+  margin: 0;
+}
+
+.ann-resize-handle {
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--accent);
+  border: 1.5px solid #ffffff;
+  cursor: nwse-resize;
+}
+
+.ann-draft-box {
+  position: absolute;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+.ann-text-input {
+  position: absolute;
+  z-index: 5;
+  min-width: 80px;
+  min-height: 24px;
+  padding: 2px 4px;
+  margin: 0;
+  border: 1.5px solid var(--accent);
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.92);
+  font-family: var(--font-sans);
+  line-height: 1.25;
+  resize: none;
+  overflow: hidden;
+  outline: none;
+}
+
+.annotation-badge {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  pointer-events: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+
+.thumb-ann-overlay {
+  position: absolute;
+  pointer-events: none;
+  z-index: 1;
+  overflow: hidden;
+}
+
+.thumb-ann-item {
+  position: absolute;
+  box-sizing: border-box;
+}
+
+.thumb-ann-text {
+  white-space: pre;
+  line-height: 1.25;
+  font-family: var(--font-sans);
+  overflow: hidden;
 }

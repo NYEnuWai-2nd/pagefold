@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { readFile, writeFile } from '@tauri-apps/plugin-fs';
+import { AnnotationEditor, type AnnotationTool } from './annotationEditor.ts';
 import { PageGridController } from './grid.ts';
 import { detectLocale, dictionaries, type Locale } from './i18n.ts';
 import { isPageSizeMode, type PageSizeMode } from './pageSize.ts';
@@ -17,11 +18,13 @@ import {
 } from './pdf.ts';
 import { parsePageRanges, splitEveryN } from './split.ts';
 import {
+  addAnnotation,
   addSource,
   canRedo,
   canUndo,
   clearSelection,
   createInitialState,
+  deleteAnnotation,
   deleteSelected,
   getReferencedSourceIds,
   moveSelectionBy,
@@ -35,6 +38,8 @@ import {
   selectSourcePages,
   toggleSelect,
   undo,
+  updateAnnotation,
+  type Rotation,
 } from './state.ts';
 
 const state = createInitialState();
@@ -57,6 +62,7 @@ const btnEmptyAdd = getEl<HTMLButtonElement>('btn-empty-add');
 const btnRotateLeft = getEl<HTMLButtonElement>('btn-rotate-left');
 const btnRotateRight = getEl<HTMLButtonElement>('btn-rotate-right');
 const btnDelete = getEl<HTMLButtonElement>('btn-delete');
+const btnAnnotate = getEl<HTMLButtonElement>('btn-annotate');
 const btnUndo = getEl<HTMLButtonElement>('btn-undo');
 const btnRedo = getEl<HTMLButtonElement>('btn-redo');
 const btnSplit = getEl<HTMLButtonElement>('btn-split');
@@ -103,15 +109,67 @@ const previewModalEl = getEl<HTMLDivElement>('preview-modal');
 const previewTitleEl = getEl<HTMLSpanElement>('preview-title');
 const previewSourceEl = getEl<HTMLSpanElement>('preview-source');
 const previewCanvasEl = getEl<HTMLCanvasElement>('preview-canvas');
-const previewImgEl = getEl<HTMLImageElement>('preview-img');
+const previewAnnOverlayEl = getEl<HTMLDivElement>('preview-ann-overlay');
 const btnPreviewPrev = getEl<HTMLButtonElement>('btn-preview-prev');
 const btnPreviewNext = getEl<HTMLButtonElement>('btn-preview-next');
 const btnPreviewRotateLeft = getEl<HTMLButtonElement>('btn-preview-rotate-left');
 const btnPreviewRotateRight = getEl<HTMLButtonElement>('btn-preview-rotate-right');
 const btnPreviewClose = getEl<HTMLButtonElement>('btn-preview-close');
+const annColorGroupEl = getEl<HTMLDivElement>('ann-color-group');
+const annTextSizeSelect = getEl<HTMLSelectElement>('ann-text-size');
+const btnAnnDelete = getEl<HTMLButtonElement>('btn-ann-delete');
+const annToolButtons = Array.from(
+  document.querySelectorAll<HTMLButtonElement>('.ann-tool-btn')
+);
+const annSwatchButtons = Array.from(
+  annColorGroupEl.querySelectorAll<HTMLButtonElement>('.ann-swatch')
+);
 
 let previewUid: string | null = null;
 let previewRenderSeq = 0;
+
+function syncAnnotationToolbarUI(): void {
+  const tool = annEditor.getTool();
+  for (const btn of annToolButtons) {
+    btn.classList.toggle('is-active', btn.dataset.tool === tool);
+  }
+  const color = annEditor.getColor().toLowerCase();
+  for (const btn of annSwatchButtons) {
+    btn.classList.toggle('is-active', (btn.dataset.color ?? '').toLowerCase() === color);
+  }
+  annTextSizeSelect.value = String(annEditor.getTextSize());
+  btnAnnDelete.disabled = !annEditor.getSelectedId();
+}
+
+const annEditor = new AnnotationEditor(previewAnnOverlayEl, {
+  onAdd: (uid, ann) => {
+    if (addAnnotation(state, uid, ann)) {
+      renderUI();
+      syncAnnotationToolbarUI();
+      void renderPreviewContent();
+    }
+  },
+  onUpdate: (uid, annId, updater) => {
+    if (updateAnnotation(state, uid, annId, updater)) {
+      renderUI();
+      syncAnnotationToolbarUI();
+      void renderPreviewContent();
+    }
+  },
+  onDelete: (uid, annId) => {
+    if (deleteAnnotation(state, uid, annId)) {
+      renderUI();
+      syncAnnotationToolbarUI();
+      void renderPreviewContent();
+    }
+  },
+  onToolChange: () => {
+    syncAnnotationToolbarUI();
+  },
+  onSelectionChange: () => {
+    syncAnnotationToolbarUI();
+  },
+});
 
 const grid = new PageGridController(pageGridEl, loadedSources, {
   onSelectOne: (uid) => {
@@ -182,6 +240,11 @@ function applyTranslations(): void {
   btnRotateRight.setAttribute('aria-label', tr.rotateRight);
   btnDelete.title = `${tr.deleteSelected} (Delete)`;
   btnDelete.setAttribute('aria-label', tr.deleteSelected);
+  btnAnnotate.title = tr.annotateTooltip;
+  btnAnnotate.setAttribute('aria-label', tr.annotateTooltip);
+  btnAnnDelete.title = tr.deleteAnnotationTooltip;
+  btnAnnDelete.setAttribute('aria-label', tr.deleteAnnotationTooltip);
+  annTextSizeSelect.setAttribute('aria-label', tr.textSizeLabel);
   btnUndo.title = `${tr.undo} (Ctrl+Z)`;
   btnUndo.setAttribute('aria-label', tr.undo);
   btnRedo.title = `${tr.redo} (Ctrl+Shift+Z)`;
@@ -273,6 +336,7 @@ function updateToolbarAndStatus(): void {
   btnRotateLeft.disabled = !hasSelection;
   btnRotateRight.disabled = !hasSelection;
   btnDelete.disabled = !hasSelection;
+  btnAnnotate.disabled = !hasSelection;
   btnExtract.disabled = !hasSelection;
   btnExport.disabled = !hasPages;
   btnSplit.disabled = !hasPages;
@@ -537,6 +601,41 @@ function initThumbSize(): void {
   setThumbSize(saved);
 }
 
+async function renderImageToPreviewCanvas(
+  objectUrl: string,
+  canvas: HTMLCanvasElement,
+  rotation: Rotation
+): Promise<{ viewWidthPt: number }> {
+  const img = new Image();
+  img.src = objectUrl;
+  await img.decode();
+
+  const natW = img.naturalWidth || 1;
+  const natH = img.naturalHeight || 1;
+  const rotated90 = rotation === 90 || rotation === 270;
+  const targetW = rotated90 ? natH : natW;
+  const targetH = rotated90 ? natW : natH;
+  const scale = Math.min(1, 1000 / Math.max(targetW, targetH));
+
+  canvas.width = Math.max(1, Math.round(targetW * scale));
+  canvas.height = Math.max(1, Math.round(targetH * scale));
+  canvas.style.width = `${canvas.width}px`;
+  canvas.style.height = `${canvas.height}px`;
+
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    ctx.save();
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.translate(canvas.width / 2, canvas.height / 2);
+    ctx.rotate((rotation * Math.PI) / 180);
+    ctx.drawImage(img, (-natW * scale) / 2, (-natH * scale) / 2, natW * scale, natH * scale);
+    ctx.restore();
+  }
+
+  return { viewWidthPt: targetW * 0.75 };
+}
+
 async function renderPreviewContent(): Promise<void> {
   if (!previewUid) return;
   const idx = state.pages.findIndex((p) => p.uid === previewUid);
@@ -557,33 +656,51 @@ async function renderPreviewContent(): Promise<void> {
 
   if (!loaded) return;
 
+  const seq = ++previewRenderSeq;
+
   if (loaded.kind === 'image') {
-    previewCanvasEl.hidden = true;
-    previewImgEl.hidden = false;
-    previewImgEl.src = loaded.objectUrl ?? '';
-    previewImgEl.style.transform = page.rotation !== 0 ? `rotate(${page.rotation}deg)` : '';
+    if (!loaded.objectUrl) return;
+    try {
+      const { viewWidthPt } = await renderImageToPreviewCanvas(
+        loaded.objectUrl,
+        previewCanvasEl,
+        page.rotation
+      );
+      if (seq !== previewRenderSeq) return;
+      annEditor.setPage(page, page.rotation, viewWidthPt);
+    } catch {
+      // Ignore decode error
+    }
     return;
   }
 
-  previewImgEl.hidden = true;
-  previewCanvasEl.hidden = false;
-  const seq = ++previewRenderSeq;
   try {
     await renderPdfThumbnail(loaded, page.pageIndex, previewCanvasEl, 1000, page.rotation);
+    if (seq !== previewRenderSeq) return;
+    const srcPage = loaded.pdfDoc.getPage(page.pageIndex);
+    const existingAngle = srcPage.getRotation().angle;
+    const totalRot = (((existingAngle + page.rotation) % 360) + 360) % 360 as Rotation;
+    const { width, height } = srcPage.getSize();
+    const viewWidthPt = totalRot === 90 || totalRot === 270 ? height : width;
+    annEditor.setPage(page, totalRot, viewWidthPt);
   } catch {
     // Ignore render error if closed or superseded
   }
-  if (seq !== previewRenderSeq) return;
 }
 
-function openPreviewModal(uid: string): void {
+function openPreviewModal(uid: string, initialTool?: AnnotationTool): void {
   if (!state.pages.some((p) => p.uid === uid)) return;
   previewUid = uid;
+  if (initialTool) {
+    annEditor.setTool(initialTool);
+  }
+  syncAnnotationToolbarUI();
   previewModalEl.hidden = false;
   void renderPreviewContent();
 }
 
 function closePreviewModal(): void {
+  annEditor.setPage(null, 0, 595.28);
   previewModalEl.hidden = true;
   previewUid = null;
 }
@@ -661,6 +778,12 @@ btnRotateRight.addEventListener('click', () => {
 btnDelete.addEventListener('click', () => {
   if (deleteSelected(state)) renderUI();
 });
+btnAnnotate.addEventListener('click', () => {
+  const firstSelected = state.pages.find((p) => state.selectedUids.has(p.uid));
+  if (firstSelected) {
+    openPreviewModal(firstSelected.uid, 'select');
+  }
+});
 btnUndo.addEventListener('click', () => {
   if (undo(state)) renderUI();
 });
@@ -703,6 +826,38 @@ btnPreviewNext.addEventListener('click', () => stepPreview(1));
 btnPreviewRotateLeft.addEventListener('click', () => rotatePreviewPage(-90));
 btnPreviewRotateRight.addEventListener('click', () => rotatePreviewPage(90));
 
+for (const btn of annToolButtons) {
+  btn.addEventListener('click', () => {
+    const tool = btn.dataset.tool as AnnotationTool | undefined;
+    if (tool) {
+      annEditor.setTool(tool);
+      syncAnnotationToolbarUI();
+    }
+  });
+}
+
+for (const btn of annSwatchButtons) {
+  btn.addEventListener('click', () => {
+    const color = btn.dataset.color;
+    if (color) {
+      annEditor.setColor(color);
+      syncAnnotationToolbarUI();
+    }
+  });
+}
+
+annTextSizeSelect.addEventListener('change', () => {
+  const size = Number(annTextSizeSelect.value);
+  if (Number.isFinite(size) && size > 0) {
+    annEditor.setTextSize(size);
+  }
+});
+
+btnAnnDelete.addEventListener('click', () => {
+  annEditor.deleteSelected();
+  syncAnnotationToolbarUI();
+});
+
 thumbSizeSlider.addEventListener('input', () => {
   setThumbSize(Number(thumbSizeSlider.value));
 });
@@ -731,9 +886,14 @@ deskEl.addEventListener(
 window.addEventListener('keydown', (e: KeyboardEvent) => {
   const target = e.target as HTMLElement | null;
   const isInput =
-    target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable;
+    target?.tagName === 'INPUT' ||
+    target?.tagName === 'TEXTAREA' ||
+    target?.tagName === 'SELECT' ||
+    target?.isContentEditable ||
+    annEditor.isEditingText();
 
   if (e.key === 'Escape') {
+    if (annEditor.isEditingText()) return;
     if (!previewModalEl.hidden) {
       closePreviewModal();
       return;
@@ -753,14 +913,62 @@ window.addEventListener('keydown', (e: KeyboardEvent) => {
 
   if (isInput) return;
 
+  const mod = e.ctrlKey || e.metaKey;
+
   if (!previewModalEl.hidden) {
+    if (mod && e.key.toLowerCase() === 'z') {
+      e.preventDefault();
+      if (e.shiftKey ? redo(state) : undo(state)) {
+        renderUI();
+        void renderPreviewContent();
+      }
+      return;
+    }
+    if (mod && e.key.toLowerCase() === 'y') {
+      e.preventDefault();
+      if (redo(state)) {
+        renderUI();
+        void renderPreviewContent();
+      }
+      return;
+    }
+    if (!mod && !e.altKey) {
+      const k = e.key.toLowerCase();
+      if (k === 'v') {
+        e.preventDefault();
+        annEditor.setTool('select');
+        return;
+      }
+      if (k === 't') {
+        e.preventDefault();
+        annEditor.setTool('text');
+        return;
+      }
+      if (k === 'b') {
+        e.preventDefault();
+        annEditor.setTool('rect');
+        return;
+      }
+      if (k === 'h') {
+        e.preventDefault();
+        annEditor.setTool('highlight');
+        return;
+      }
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (annEditor.deleteSelected()) {
+          e.preventDefault();
+          syncAnnotationToolbarUI();
+        }
+        return;
+      }
+    }
     if (e.key === 'ArrowLeft') {
       e.preventDefault();
       stepPreview(-1);
     } else if (e.key === 'ArrowRight') {
       e.preventDefault();
       stepPreview(1);
-    } else if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'r') {
+    } else if (!mod && !e.altKey && e.key.toLowerCase() === 'r') {
       e.preventDefault();
       rotatePreviewPage(e.shiftKey ? -90 : 90);
     } else if (e.key === ' ') {
@@ -791,7 +999,14 @@ window.addEventListener('keydown', (e: KeyboardEvent) => {
     return;
   }
 
-  const mod = e.ctrlKey || e.metaKey;
+  if (!mod && !e.altKey && e.key.toLowerCase() === 'e' && state.pages.length > 0) {
+    const firstSelected = state.pages.find((p) => state.selectedUids.has(p.uid));
+    if (firstSelected) {
+      e.preventDefault();
+      openPreviewModal(firstSelected.uid, 'select');
+    }
+    return;
+  }
 
   if (mod && e.key.toLowerCase() === 'a') {
     e.preventDefault();

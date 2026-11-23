@@ -71,8 +71,17 @@ export interface Translations {
   shortcutDelete: string;
   shortcutUndoRedo: string;
   shortcutPreview: string;
+  shortcutAnnotate: string;
+  shortcutAnnTools: string;
   shortcutZoom: string;
   shortcutHelp: string;
+  annotateTooltip: string;
+  toolSelect: string;
+  toolText: string;
+  toolRect: string;
+  toolHighlight: string;
+  deleteAnnotationTooltip: string;
+  textSizeLabel: string;
   thumbSizeLabel: string;
   previewOf: (current: number, total: number) => string;
   pageLabel: (n: number) => string;
@@ -150,8 +159,17 @@ const en: Translations = {
   shortcutDelete: 'Delete selected pages',
   shortcutUndoRedo: 'Undo / Redo',
   shortcutPreview: 'Quick-look preview',
+  shortcutAnnotate: 'Annotate selected page',
+  shortcutAnnTools: 'Select / Text / Rectangle / Highlight',
   shortcutZoom: 'Resize thumbnails',
   shortcutHelp: 'Toggle this shortcuts guide',
+  annotateTooltip: 'Annotate (E)',
+  toolSelect: 'Select (V)',
+  toolText: 'Text (T)',
+  toolRect: 'Rectangle (B)',
+  toolHighlight: 'Highlight (H)',
+  deleteAnnotationTooltip: 'Delete annotation (Del)',
+  textSizeLabel: 'Text size',
   thumbSizeLabel: 'Thumbnail size (Ctrl+Wheel)',
   previewOf: (current, total) => `Page ${current} of ${total}`,
   pageLabel: (n) => `p.${n}`,
@@ -228,8 +246,17 @@ const ja: Translations = {
   shortcutDelete: '選択ページを削除',
   shortcutUndoRedo: '元に戻す / やり直す',
   shortcutPreview: 'クイックプレビュー',
+  shortcutAnnotate: '選択ページに注釈を追加',
+  shortcutAnnTools: '選択 / テキスト / 四角形 / ハイライト',
   shortcutZoom: 'サムネイルサイズ変更',
   shortcutHelp: 'このショートカット一覧を表示',
+  annotateTooltip: '注釈を編集 (E)',
+  toolSelect: '選択 (V)',
+  toolText: 'テキスト (T)',
+  toolRect: '四角形 (B)',
+  toolHighlight: 'ハイライト (H)',
+  deleteAnnotationTooltip: '注釈を削除 (Del)',
+  textSizeLabel: '文字サイズ',
   thumbSizeLabel: 'サムネイルサイズ (Ctrl+ホイール)',
   previewOf: (current, total) => `${current} / ${total} ページ`,
   pageLabel: (n) => `${n}`,

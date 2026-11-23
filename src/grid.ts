@@ -1,5 +1,6 @@
+import { toViewCoords, toViewRect } from './annotations.ts';
 import { renderPdfThumbnail, type LoadedSource } from './pdf.ts';
-import type { PageItem, SourceFileInfo } from './state.ts';
+import type { Annotation, PageItem, Rotation, SourceFileInfo } from './state.ts';
 
 export interface GridCallbacks {
   onSelectOne: (uid: string) => void;
@@ -262,6 +263,35 @@ export class PageGridController {
         rotBadge.className = 'rotation-badge';
         rotBadge.textContent = `${page.rotation}°`;
         stage.appendChild(rotBadge);
+      }
+
+      if (page.annotations?.length) {
+        const annBadge = document.createElement('span');
+        annBadge.className = 'annotation-badge';
+        annBadge.innerHTML =
+          '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
+        stage.appendChild(annBadge);
+
+        const existingAngle =
+          loaded?.kind === 'pdf'
+            ? loaded.pdfDoc.getPage(page.pageIndex).getRotation().angle
+            : 0;
+        const totalRot = (((existingAngle + page.rotation) % 360) + 360) % 360 as Rotation;
+        const annOverlay = buildThumbAnnotationOverlay(page.annotations, totalRot);
+        stage.appendChild(annOverlay);
+
+        const syncOverlay = (): void => {
+          if (!img.isConnected || !stage.isConnected) return;
+          const sr = stage.getBoundingClientRect();
+          const ir = img.getBoundingClientRect();
+          if (sr.width <= 0 || ir.width <= 0) return;
+          annOverlay.style.left = `${ir.left - sr.left}px`;
+          annOverlay.style.top = `${ir.top - sr.top}px`;
+          annOverlay.style.width = `${ir.width}px`;
+          annOverlay.style.height = `${ir.height}px`;
+        };
+        img.addEventListener('load', syncOverlay);
+        requestAnimationFrame(syncOverlay);
       }
 
       card.append(stage, meta);
@@ -561,6 +591,42 @@ export class PageGridController {
       el.classList.remove('is-dragging');
     }
   }
+}
+
+function buildThumbAnnotationOverlay(
+  annotations: Annotation[],
+  rotation: Rotation
+): HTMLElement {
+  const overlay = document.createElement('div');
+  overlay.className = 'thumb-ann-overlay';
+
+  for (const ann of annotations) {
+    const el = document.createElement('div');
+    el.className = 'thumb-ann-item';
+    if (ann.kind === 'text') {
+      const vp = toViewCoords({ x: ann.x, y: ann.y }, rotation);
+      el.classList.add('thumb-ann-text');
+      el.style.left = `${vp.x * 100}%`;
+      el.style.top = `${vp.y * 100}%`;
+      el.style.color = ann.color;
+      el.style.fontSize = `${Math.max(4, Math.round(ann.size * 0.25))}px`;
+      el.textContent = ann.text;
+    } else {
+      const vr = toViewRect({ x: ann.x, y: ann.y, w: ann.w, h: ann.h }, rotation);
+      el.style.left = `${vr.x * 100}%`;
+      el.style.top = `${vr.y * 100}%`;
+      el.style.width = `${vr.w * 100}%`;
+      el.style.height = `${vr.h * 100}%`;
+      if (ann.kind === 'rect') {
+        el.style.border = `1.5px solid ${ann.color}`;
+      } else {
+        el.style.backgroundColor = ann.color;
+        el.style.opacity = '0.35';
+      }
+    }
+    overlay.appendChild(el);
+  }
+  return overlay;
 }
 
 function canvasToJpegUrl(canvas: HTMLCanvasElement): Promise<string> {
