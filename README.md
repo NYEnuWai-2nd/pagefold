@@ -1,37 +1,57 @@
+English | [日本語](README.ja.md)
+
 # Pagefold
 
-**A tiny, offline desktop app to merge, reorder, rotate, delete, extract, and split PDF pages visually** — the iLovePDF workflow without uploading your tax returns, leases, or ID scans anywhere.
-
-> [!NOTE]
-> **100% Offline & Private.** Pagefold never connects to the internet, has no account system, and includes zero telemetry. Your documents never leave your computer.
+Pagefold is a small, offline desktop app for organizing PDF pages. People routinely upload tax returns, contracts, and ID scans to web PDF tools just to reorder a few pages or rotate a sideways scan. Pagefold keeps that work on your machine. It is built with Tauri v2, `pdf-lib`, and a locally bundled `pdf.js` worker, and ships at v0.3.0 as a ~6 MB Windows executable (~2.4 MB installer).
 
 ![Pagefold screenshot](docs/screenshot.png)
 
-## Why Pagefold?
+## Download
 
-People routinely upload sensitive documents—tax returns, employment contracts, medical forms, passport scans—to random web PDF tools just to merge two files or rotate a sideways page. Existing open-source desktop options are often form-based (PDFsam), GTK-styled on Windows/macOS (PDF Arranger), or require a local web server/Docker (Stirling-PDF).
+Prebuilt binaries for Windows, macOS (universal), and Linux are published on the [GitHub Releases](https://github.com/NYEnuWai-2nd/pagefold/releases) page via GitHub Actions whenever a version tag is pushed.
 
-Pagefold is a ~10 MB double-click desktop app built with **Tauri v2**, **pdf-lib**, and **pdf.js** (with its worker bundled locally).
+Release binaries are currently unsigned:
 
-## Features (v0.3)
+- **Windows (SmartScreen)**: Click "More info", then "Run anyway".
+- **macOS (Gatekeeper)**: Right-click the app in Finder and choose "Open".
 
-- **Add PDFs & Images**: Drag and drop PDF, PNG, or JPEG files onto the desk (inserts at the drop position) or use the file picker.
-- **Page Size Normalization**: Choose **Page size** in the status bar when exporting: *Match first PDF page* (default, orientation matched to each image), *A3*, *A4*, *A5*, *B4 (JIS)*, *B5 (JIS)*, *Letter*, *Legal* (uniformly scales and centers all PDF and image pages while preserving vector content and rotation — e.g. unify scanned pages to A4 with margins), or *Original size* (96 dpi for images).
-- **Image Compression (Keeps Vector Text)**: Choose **Compress** in the status bar (`Off`, `Light`, `Standard`, `Strong`) to downscale and re-encode embedded JPEG images ≥100 KB on export/extract/split while keeping vector text selectable and crisp. Note: CMYK, JBIG2, and CCITT images are left as is. After saving, a toast shows the size comparison (e.g., `14.2 MB → 3.1 MB (−78%)`).
-- **Annotations (Text, Rectangle, Highlight)**: Press `E` or click the **Annotate** button (or open quick-look preview) to add text notes, rectangles, and highlights (35% opacity) with color swatches, text sizes (`10`–`32 pt`), drag-to-move, resize handles, and full Undo/Redo support. Annotated cards display a lightweight thumbnail overlay and pencil badge. Text annotations export as **real, selectable PDF text** using an OS-installed Japanese-capable system font (Yu Gothic / Hiragino / Noto CJK) with only the used glyphs embedded (subsetting), and automatically fall back to high-DPI image rendering if no suitable font is found or a glyph is missing.
-- **Visual Page Grid**: Crisp paper-sheet thumbnails rendered lazily with `IntersectionObserver` so even 300-page documents stay responsive. Resize thumbnails with the status-bar slider or `Ctrl+Wheel`. Source files are color-tagged in the sidebar (click a source to select all its pages).
-- **Quick-Look Preview**: Double-click any page or press `Space` to inspect it at full size, step with `←` / `→`, rotate with `R` / `Shift+R`, and annotate.
-- **Multi-Select & Reorder**: Click, `Ctrl/Cmd+Click`, `Shift+Click`, or `Ctrl/Cmd+A` to select pages, then drag-and-drop with pointer events (or `Alt+←` / `Alt+→`) to reorder.
-- **Rotate & Delete with Undo/Redo**: Rotate selected pages ±90° (`R` / `Shift+R`), delete (`Delete` / `Backspace`), and undo/redo (`Ctrl+Z` / `Ctrl+Shift+Z` / `Ctrl+Y`).
-- **Export, Extract & Split**:
-  - **Export PDF…** — save all pages in their current order.
-  - **Extract Selected…** — save only the selected pages.
-  - **Split…** — split every *N* pages or by custom ranges (e.g., `1-3, 5, 8-10`) into a chosen folder.
-- **Privacy by Default**: **Remove metadata** is enabled by default on export, stripping producer, creator, title, author, and XMP metadata.
-- **Open with Pagefold**: Pass files on the command line (`pagefold.exe a.pdf b.pdf`) or use your file manager's "Open with".
-- **Bilingual UI**: Automatic English / Japanese (`EN` / `日本語`) detection with a one-click header toggle, plus automatic light/dark mode ("calm paper workbench" / "night desk").
+## What it does
 
-## Keyboard Shortcuts
+### Pages and files
+
+Drop PDF, PNG, or JPEG files onto the desk to insert them at the drop position, or add them from the file picker. You can also pass files through your file manager's "Open with" menu or from the command line (`pagefold.exe a.pdf b.pdf`).
+
+Pages can be multi-selected, reordered by dragging or with `Alt+←` / `Alt+→`, rotated ±90°, and deleted, with full undo and redo. The sidebar lists loaded source files with color tags; clicking a file selects all of its pages.
+
+### Preview and thumbnails
+
+Press `Space` or double-click any page to open the quick-look preview, where you can step through pages and rotate them. Thumbnails render lazily as you scroll and resize with the status-bar slider or `Ctrl+Wheel`.
+
+### Export, extract, and split
+
+- **Export PDF…** saves all pages in their current order.
+- **Extract Selected…** saves only the selected pages.
+- **Split…** writes separate files every N pages or by custom ranges such as `1-3, 5, 8-10`.
+
+**Remove metadata** is on by default on export.
+
+### Page size normalization
+
+Choose a target in the status-bar **Page size** menu: *Match first PDF page* (default), *A3*, *A4*, *A5*, *B4 (JIS)*, *B5 (JIS)*, *Letter*, *Legal*, or *Original size*. Fixed paper sizes scale each page uniformly to fit with blank margins while preserving vector content and page rotation.
+
+### Image compression
+
+Set **Compress** in the status bar to *Light*, *Standard*, or *Strong* to downscale and re-encode embedded JPEG images (100 KB and larger) during export, extract, or split. Vector text stays selectable. CMYK, JBIG2, and CCITT images are left untouched. After saving, a toast shows the size before and after.
+
+### Annotations
+
+Press `E` or click the Annotate button to add text notes, rectangles, and highlights (35% opacity) inside the preview editor, with color swatches, text sizes from 10 to 32 pt, drag/resize handles, and undo/redo. Text annotations are exported as real selectable PDF text using an OS font (Yu Gothic, Hiragino, or Noto CJK) with glyph subsetting, falling back to a high-DPI image overlay if no suitable font or glyph is available.
+
+### Interface
+
+The UI supports English and Japanese with automatic locale detection and a header toggle, and follows system light and dark mode.
+
+## Keyboard shortcuts
 
 | Shortcut | Action |
 | --- | --- |
@@ -46,25 +66,29 @@ Pagefold is a ~10 MB double-click desktop app built with **Tauri v2**, **pdf-lib
 | `Ctrl` + `Z` / `Ctrl` + `Shift` + `Z` | Undo / Redo |
 | `Space` / `Double-click` | Quick-look preview |
 | `E` | Annotate selected page |
-| `V` / `T` / `B` / `H` | Annotation tools: Select / Text / Rectangle / Highlight |
+| `V` / `T` / `B` / `H` | Select / Text / Rectangle / Highlight |
 | `Ctrl` + `Wheel` | Resize thumbnails |
-| `?` | Toggle keyboard shortcuts overlay |
+| `?` | Toggle keyboard shortcuts guide |
 
-## Privacy Statement
+## Privacy
 
-- All PDF parsing, thumbnail rendering, and PDF assembly run locally inside the app.
-- No network requests are made at runtime; the `pdf.js` worker is bundled directly into the application, and a strict Content-Security-Policy blocks any remote origin.
-- **Remove metadata** is checked by default so exported PDFs do not leak source document metadata.
+All PDF parsing, thumbnail rendering, and export assembly run locally inside the app. The `pdf.js` worker is bundled into the binary, and a strict Content-Security-Policy blocks remote origins. There is no account system, no telemetry, and no network traffic at runtime. **Remove metadata** is enabled by default so exported files do not carry over title, author, producer, creator, or XMP metadata.
 
-## Build from Source
+## Limitations
 
-### Prerequisites
+- **Memory usage on scanned PDFs**: Image-heavy scans consume significant RAM during rendering and export—roughly 570 MB of private memory for 50 A4 pages at 300 dpi.
+- **Encrypted PDFs**: Password-protected PDFs cannot be opened yet.
+- **Compression scope**: Only embedded JPEG (`DCTDecode`) streams of at least 100 KB are re-encoded. CMYK, JBIG2, CCITT, PNG-like flate streams, and smaller images are left as-is.
+- **Annotations are not redaction**: Rectangles sit on top of existing page content and do not strip underlying text or images. Text annotations fall back to rasterized images when no embeddable TrueType font or required glyph is found.
+- **Unsigned binaries**: Release downloads are not code-signed, so Windows and macOS display a security prompt on first run.
 
-- Node.js 20+ (tested with Node 24)
+## Build from source
+
+Prerequisites:
+
+- Node.js 20+ (CI runs Node 22)
 - Rust toolchain (`rustup` / `cargo`)
-- Tauri v2 OS prerequisites (WebView2 on Windows, Xcode Command Line Tools on macOS, `webkit2gtk` on Linux)
-
-### Commands
+- Tauri v2 platform dependencies: WebView2 on Windows, Xcode Command Line Tools on macOS, or `libwebkit2gtk-4.1-dev`, `libappindicator3-dev`, `librsvg2-dev`, and `patchelf` on Ubuntu/Debian
 
 ```bash
 npm install
@@ -73,7 +97,7 @@ npm run build
 npm run tauri build
 ```
 
-For a standalone binary without installers:
+To build a standalone executable without installers:
 
 ```bash
 npm run tauri build -- --no-bundle
@@ -81,13 +105,12 @@ npm run tauri build -- --no-bundle
 
 ## Roadmap
 
-- Password-protected PDF unlock / encryption
-- True redaction (flatten)
+- Password-protected PDF unlock and encryption
+- True redaction (flattened content removal)
 - Insert blank page
 - Export pages as PNG
 - Local OCR
-- macOS and Linux release builds via GitHub Actions CI
 
 ## License
 
-MIT © [Pagefold contributors](LICENSE)
+MIT. See [LICENSE](LICENSE).
