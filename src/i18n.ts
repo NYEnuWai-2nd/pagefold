@@ -64,7 +64,11 @@ export interface Translations {
   shortcutRotate: string;
   shortcutDelete: string;
   shortcutUndoRedo: string;
+  shortcutPreview: string;
+  shortcutZoom: string;
   shortcutHelp: string;
+  thumbSizeLabel: string;
+  previewOf: (current: number, total: number) => string;
   pageLabel: (n: number) => string;
 }
 
@@ -133,7 +137,11 @@ const en: Translations = {
   shortcutRotate: 'Rotate selected ±90°',
   shortcutDelete: 'Delete selected pages',
   shortcutUndoRedo: 'Undo / Redo',
+  shortcutPreview: 'Quick-look preview',
+  shortcutZoom: 'Resize thumbnails',
   shortcutHelp: 'Toggle this shortcuts guide',
+  thumbSizeLabel: 'Thumbnail size (Ctrl+Wheel)',
+  previewOf: (current, total) => `Page ${current} of ${total}`,
   pageLabel: (n) => `p.${n}`,
 };
 
@@ -201,7 +209,11 @@ const ja: Translations = {
   shortcutRotate: '選択ページを ±90° 回転',
   shortcutDelete: '選択ページを削除',
   shortcutUndoRedo: '元に戻す / やり直す',
+  shortcutPreview: 'クイックプレビュー',
+  shortcutZoom: 'サムネイルサイズ変更',
   shortcutHelp: 'このショートカット一覧を表示',
+  thumbSizeLabel: 'サムネイルサイズ (Ctrl+ホイール)',
+  previewOf: (current, total) => `${current} / ${total} ページ`,
   pageLabel: (n) => `${n}`,
 };
 

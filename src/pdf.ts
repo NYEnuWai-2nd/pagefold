@@ -126,19 +126,21 @@ export async function renderPdfThumbnail(
   source: LoadedPdfSource,
   pageIndex: number,
   canvas: HTMLCanvasElement,
-  targetWidth = 180
+  targetWidth = 180,
+  extraRotation = 0
 ): Promise<{ width: number; height: number }> {
   if (!source.pdfjsDoc) {
     throw new Error('Preview document is not loaded');
   }
   const page = await source.pdfjsDoc.getPage(pageIndex + 1);
   const dpr = typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 2) : 1;
-  const unscaled = page.getViewport({ scale: 1 });
+  const totalRotation = normalizeDegrees(page.rotate + extraRotation);
+  const unscaled = page.getViewport({ scale: 1, rotation: totalRotation });
   const cssScale = targetWidth / unscaled.width;
   const cssWidth = Math.round(unscaled.width * cssScale);
   const cssHeight = Math.round(unscaled.height * cssScale);
 
-  const renderViewport = page.getViewport({ scale: cssScale * dpr });
+  const renderViewport = page.getViewport({ scale: cssScale * dpr, rotation: totalRotation });
   canvas.width = Math.max(1, Math.round(renderViewport.width));
   canvas.height = Math.max(1, Math.round(renderViewport.height));
   canvas.style.width = `${cssWidth}px`;

@@ -7,6 +7,7 @@ export interface GridCallbacks {
   onSelectRange: (uid: string) => void;
   onClearSelection: () => void;
   onReorder: (targetIndex: number) => void;
+  onOpenPreview: (uid: string) => void;
   getTranslationPageLabel: (n: number) => string;
 }
 
@@ -30,6 +31,7 @@ export class PageGridController {
 
   private sourceInfoMap = new Map<string, SourceFileInfo>();
   private selectedUids = new Set<string>();
+  private externalMarkerEl: HTMLElement | null = null;
 
   private dragState: {
     uid: string;
@@ -270,6 +272,14 @@ export class PageGridController {
   }
 
   private setupContainerEvents(): void {
+    this.container.addEventListener('dblclick', (e: MouseEvent) => {
+      const card = (e.target as HTMLElement).closest<HTMLElement>('.page-card');
+      const uid = card?.dataset.uid;
+      if (uid) {
+        this.callbacks.onOpenPreview(uid);
+      }
+    });
+
     this.container.addEventListener('pointerdown', (e: PointerEvent) => {
       if (e.button !== 0) return;
       const card = (e.target as HTMLElement).closest<HTMLElement>('.page-card');
@@ -396,29 +406,23 @@ export class PageGridController {
     ds.markerEl = marker;
   }
 
-  private updateDrag(
-    ds: NonNullable<PageGridController['dragState']>,
+  private computeDropSlot(
+    cardRects: Array<{ index: number; rect: DOMRect }>,
     clientX: number,
     clientY: number
-  ): void {
-    if (ds.ghostEl) {
-      ds.ghostEl.style.left = `${clientX + 12}px`;
-      ds.ghostEl.style.top = `${clientY + 12}px`;
-    }
-
-    if (ds.cardRects.length === 0) return;
+  ): { index: number; markerX: number; markerTop: number; markerHeight: number } | null {
+    if (cardRects.length === 0) return null;
 
     let bestIndex = 0;
     let bestDist = Infinity;
-    let markerX = ds.cardRects[0].rect.left - 6;
-    let markerTop = ds.cardRects[0].rect.top;
-    let markerHeight = ds.cardRects[0].rect.height;
+    let markerX = cardRects[0].rect.left - 6;
+    let markerTop = cardRects[0].rect.top;
+    let markerHeight = cardRects[0].rect.height;
 
-    for (const { index, rect } of ds.cardRects) {
+    for (const { index, rect } of cardRects) {
       const cy = rect.top + rect.height / 2;
       const dy = Math.abs(clientY - cy);
 
-      // Left edge slot (index)
       const leftDist = Math.hypot(clientX - rect.left, dy * 1.4);
       if (leftDist < bestDist) {
         bestDist = leftDist;
@@ -428,7 +432,6 @@ export class PageGridController {
         markerHeight = rect.height;
       }
 
-      // Right edge slot (index + 1)
       const rightDist = Math.hypot(clientX - rect.right, dy * 1.4);
       if (rightDist < bestDist) {
         bestDist = rightDist;
@@ -439,11 +442,61 @@ export class PageGridController {
       }
     }
 
-    ds.targetIndex = bestIndex;
+    return { index: bestIndex, markerX, markerTop, markerHeight };
+  }
+
+  public findDropSlot(clientX: number, clientY: number): number | undefined {
+    const cards = Array.from(this.container.querySelectorAll<HTMLElement>('.page-card'));
+    if (cards.length === 0) return undefined;
+    const rects = cards.map((el, index) => ({ index, rect: el.getBoundingClientRect() }));
+    return this.computeDropSlot(rects, clientX, clientY)?.index;
+  }
+
+  public showExternalDropMarker(clientX: number, clientY: number): void {
+    const cards = Array.from(this.container.querySelectorAll<HTMLElement>('.page-card'));
+    if (cards.length === 0) {
+      this.hideExternalDropMarker();
+      return;
+    }
+    const rects = cards.map((el, index) => ({ index, rect: el.getBoundingClientRect() }));
+    const slot = this.computeDropSlot(rects, clientX, clientY);
+    if (!slot) return;
+
+    if (!this.externalMarkerEl) {
+      this.externalMarkerEl = document.createElement('div');
+      this.externalMarkerEl.className = 'insertion-marker';
+      document.body.appendChild(this.externalMarkerEl);
+    }
+    this.externalMarkerEl.style.left = `${slot.markerX}px`;
+    this.externalMarkerEl.style.top = `${slot.markerTop}px`;
+    this.externalMarkerEl.style.height = `${slot.markerHeight}px`;
+  }
+
+  public hideExternalDropMarker(): void {
+    if (this.externalMarkerEl) {
+      this.externalMarkerEl.remove();
+      this.externalMarkerEl = null;
+    }
+  }
+
+  private updateDrag(
+    ds: NonNullable<PageGridController['dragState']>,
+    clientX: number,
+    clientY: number
+  ): void {
+    if (ds.ghostEl) {
+      ds.ghostEl.style.left = `${clientX + 12}px`;
+      ds.ghostEl.style.top = `${clientY + 12}px`;
+    }
+
+    const slot = this.computeDropSlot(ds.cardRects, clientX, clientY);
+    if (!slot) return;
+
+    ds.targetIndex = slot.index;
     if (ds.markerEl) {
-      ds.markerEl.style.left = `${markerX}px`;
-      ds.markerEl.style.top = `${markerTop}px`;
-      ds.markerEl.style.height = `${markerHeight}px`;
+      ds.markerEl.style.left = `${slot.markerX}px`;
+      ds.markerEl.style.top = `${slot.markerTop}px`;
+      ds.markerEl.style.height = `${slot.markerHeight}px`;
     }
   }
 

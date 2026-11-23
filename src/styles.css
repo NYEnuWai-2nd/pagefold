@@ -331,6 +331,13 @@ input {
   border-radius: var(--radius-sm);
   background: var(--bg-card);
   border: 1px solid var(--border-hairline);
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.source-item:hover {
+  background: var(--bg-subtle);
+  border-color: var(--border-strong);
 }
 
 .source-item-dot {
@@ -463,7 +470,7 @@ input {
 
 .page-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(196px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(var(--thumb-size, 196px), 1fr));
   gap: 18px;
   align-items: start;
 }
@@ -670,11 +677,31 @@ input {
   margin: 0;
 }
 
+.status-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+}
+
 .status-counts {
   display: inline-flex;
   align-items: center;
   gap: 14px;
   font-variant-numeric: tabular-nums;
+}
+
+.status-zoom {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+}
+
+.thumb-size-slider {
+  width: 88px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  margin: 0;
 }
 
 /* Drop overlay */
@@ -916,4 +943,82 @@ kbd {
   padding: 0 2px;
   font-size: 15px;
   line-height: 1;
+}
+
+/* Quick-look preview modal */
+.preview-backdrop {
+  padding: 20px;
+}
+
+.preview-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(92vw, 1080px);
+  max-height: 92vh;
+  background: var(--bg-card);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-modal);
+  overflow: hidden;
+}
+
+.preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-hairline);
+  background: var(--bg-surface);
+}
+
+.preview-title-group {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+
+.preview-title {
+  font-weight: 700;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.preview-source {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.preview-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.preview-stage {
+  flex: 1 1 auto;
+  min-height: 240px;
+  overflow: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: var(--bg-desk);
+}
+
+.preview-canvas,
+.preview-img {
+  max-width: 100%;
+  max-height: 78vh;
+  width: auto !important;
+  height: auto !important;
+  object-fit: contain;
+  background: #ffffff;
+  border-radius: 3px;
+  box-shadow: var(--shadow-card-hover);
 }

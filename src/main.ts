@@ -11,6 +11,7 @@ import {
   exportPagesToPdf,
   loadImageSource,
   loadPdfSource,
+  renderPdfThumbnail,
   type LoadedSource,
 } from './pdf.ts';
 import { parsePageRanges, splitEveryN } from './split.ts';
@@ -30,6 +31,7 @@ import {
   selectAll,
   selectOne,
   selectRange,
+  selectSourcePages,
   toggleSelect,
   undo,
 } from './state.ts';
@@ -67,9 +69,12 @@ const stripMetadataLabel = getEl<HTMLLabelElement>('strip-metadata-label');
 const sourceListEl = getEl<HTMLUListElement>('source-list');
 const sourceEmptyEl = getEl<HTMLParagraphElement>('source-empty');
 const emptyStateEl = getEl<HTMLDivElement>('empty-state');
+const deskEl = getEl<HTMLElement>('desk');
 const pageGridEl = getEl<HTMLDivElement>('page-grid');
 const statusSelectionEl = getEl<HTMLSpanElement>('status-selection');
 const statusTotalEl = getEl<HTMLSpanElement>('status-total');
+const thumbSizeSlider = getEl<HTMLInputElement>('thumb-size-slider');
+const thumbSizeLabel = getEl<HTMLLabelElement>('thumb-size-label');
 const dropOverlayEl = getEl<HTMLDivElement>('drop-overlay');
 const toastContainerEl = getEl<HTMLDivElement>('toast-container');
 
@@ -89,6 +94,21 @@ const splitError = getEl<HTMLParagraphElement>('split-error');
 // Shortcuts modal elements
 const shortcutsModalEl = getEl<HTMLDivElement>('shortcuts-modal');
 const btnShortcutsClose = getEl<HTMLButtonElement>('btn-shortcuts-close');
+
+// Quick-look preview modal elements
+const previewModalEl = getEl<HTMLDivElement>('preview-modal');
+const previewTitleEl = getEl<HTMLSpanElement>('preview-title');
+const previewSourceEl = getEl<HTMLSpanElement>('preview-source');
+const previewCanvasEl = getEl<HTMLCanvasElement>('preview-canvas');
+const previewImgEl = getEl<HTMLImageElement>('preview-img');
+const btnPreviewPrev = getEl<HTMLButtonElement>('btn-preview-prev');
+const btnPreviewNext = getEl<HTMLButtonElement>('btn-preview-next');
+const btnPreviewRotateLeft = getEl<HTMLButtonElement>('btn-preview-rotate-left');
+const btnPreviewRotateRight = getEl<HTMLButtonElement>('btn-preview-rotate-right');
+const btnPreviewClose = getEl<HTMLButtonElement>('btn-preview-close');
+
+let previewUid: string | null = null;
+let previewRenderSeq = 0;
 
 const grid = new PageGridController(pageGridEl, loadedSources, {
   onSelectOne: (uid) => {
@@ -111,6 +131,9 @@ const grid = new PageGridController(pageGridEl, loadedSources, {
     if (reorderSelection(state, targetIndex)) {
       renderUI();
     }
+  },
+  onOpenPreview: (uid) => {
+    openPreviewModal(uid);
   },
   getTranslationPageLabel: (n) => t().pageLabel(n),
 });
@@ -164,6 +187,10 @@ function applyTranslations(): void {
   btnHelp.setAttribute('aria-label', tr.shortcutsTitle);
   btnLang.textContent = tr.langToggleLabel;
   stripMetadataLabel.title = tr.stripMetadataTooltip;
+  thumbSizeLabel.title = tr.thumbSizeLabel;
+  thumbSizeSlider.setAttribute('aria-label', tr.thumbSizeLabel);
+  btnPreviewRotateLeft.title = `${tr.rotateLeft} (Shift+R)`;
+  btnPreviewRotateRight.title = `${tr.rotateRight} (R)`;
   inputRanges.placeholder = tr.splitRangesPlaceholder;
 
   renderUI();
@@ -202,10 +229,16 @@ function renderSidebar(): void {
     removeBtn.textContent = '×';
     removeBtn.title = tr.removeSourceTooltip;
     removeBtn.setAttribute('aria-label', `${tr.removeSourceTooltip}: ${src.name}`);
-    removeBtn.addEventListener('click', () => {
+    removeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
       if (removeSource(state, src.id)) {
         renderUI();
       }
+    });
+
+    li.addEventListener('click', () => {
+      selectSourcePages(state, src.id);
+      renderSelectionUI();
     });
 
     li.append(dot, info, removeBtn);
@@ -268,10 +301,11 @@ function stripExtension(fileName: string): string {
   return idx > 0 ? fileName.slice(0, idx) : fileName;
 }
 
-async function addFilesFromPaths(paths: string[]): Promise<void> {
+async function addFilesFromPaths(paths: string[], insertAt?: number): Promise<void> {
   const tr = t();
   let addedFiles = 0;
   let addedPages = 0;
+  let cursor = insertAt;
 
   for (const filePath of paths) {
     const fileName = extractFileName(filePath);
@@ -285,14 +319,28 @@ async function addFilesFromPaths(paths: string[]): Promise<void> {
       if (kind === 'pdf') {
         const loaded = await loadPdfSource(fileName, bytes);
         loadedSources.set(id, loaded);
-        addSource(state, { id, name: fileName, kind: 'pdf', pageCount: loaded.pageCount });
+        addSource(state, {
+          id,
+          name: fileName,
+          kind: 'pdf',
+          pageCount: loaded.pageCount,
+          insertAt: cursor,
+        });
+        if (cursor !== undefined) cursor += loaded.pageCount;
         addedFiles += 1;
         addedPages += loaded.pageCount;
       } else {
         const mimeType = kind === 'image-png' ? 'image/png' : 'image/jpeg';
         const loaded = loadImageSource(fileName, mimeType, bytes);
         loadedSources.set(id, loaded);
-        addSource(state, { id, name: fileName, kind: 'image', pageCount: 1 });
+        addSource(state, {
+          id,
+          name: fileName,
+          kind: 'image',
+          pageCount: 1,
+          insertAt: cursor,
+        });
+        if (cursor !== undefined) cursor += 1;
         addedFiles += 1;
         addedPages += 1;
       }
@@ -435,6 +483,106 @@ function closeShortcutsModal(): void {
   shortcutsModalEl.hidden = true;
 }
 
+const THUMB_SIZE_KEY = 'pagefold.thumbSize';
+const THUMB_SIZE_MIN = 110;
+const THUMB_SIZE_MAX = 320;
+const THUMB_SIZE_DEFAULT = 196;
+
+function setThumbSize(px: number): void {
+  const clamped = Math.max(THUMB_SIZE_MIN, Math.min(THUMB_SIZE_MAX, Math.round(px)));
+  pageGridEl.style.setProperty('--thumb-size', `${clamped}px`);
+  thumbSizeSlider.value = String(clamped);
+  try {
+    window.localStorage.setItem(THUMB_SIZE_KEY, String(clamped));
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+function initThumbSize(): void {
+  let saved = THUMB_SIZE_DEFAULT;
+  try {
+    const raw = window.localStorage.getItem(THUMB_SIZE_KEY);
+    if (raw) {
+      const parsed = Number(raw);
+      if (Number.isFinite(parsed)) saved = parsed;
+    }
+  } catch {
+    // Ignore storage errors
+  }
+  setThumbSize(saved);
+}
+
+async function renderPreviewContent(): Promise<void> {
+  if (!previewUid) return;
+  const idx = state.pages.findIndex((p) => p.uid === previewUid);
+  if (idx === -1) {
+    closePreviewModal();
+    return;
+  }
+
+  const page = state.pages[idx];
+  const srcInfo = state.sources.find((s) => s.id === page.sourceId);
+  const loaded = loadedSources.get(page.sourceId);
+  const tr = t();
+
+  previewTitleEl.textContent = tr.previewOf(idx + 1, state.pages.length);
+  previewSourceEl.textContent = srcInfo?.name ?? '';
+  btnPreviewPrev.disabled = idx === 0;
+  btnPreviewNext.disabled = idx === state.pages.length - 1;
+
+  if (!loaded) return;
+
+  if (loaded.kind === 'image') {
+    previewCanvasEl.hidden = true;
+    previewImgEl.hidden = false;
+    previewImgEl.src = loaded.objectUrl ?? '';
+    previewImgEl.style.transform = page.rotation !== 0 ? `rotate(${page.rotation}deg)` : '';
+    return;
+  }
+
+  previewImgEl.hidden = true;
+  previewCanvasEl.hidden = false;
+  const seq = ++previewRenderSeq;
+  try {
+    await renderPdfThumbnail(loaded, page.pageIndex, previewCanvasEl, 1000, page.rotation);
+  } catch {
+    // Ignore render error if closed or superseded
+  }
+  if (seq !== previewRenderSeq) return;
+}
+
+function openPreviewModal(uid: string): void {
+  if (!state.pages.some((p) => p.uid === uid)) return;
+  previewUid = uid;
+  previewModalEl.hidden = false;
+  void renderPreviewContent();
+}
+
+function closePreviewModal(): void {
+  previewModalEl.hidden = true;
+  previewUid = null;
+}
+
+function stepPreview(delta: -1 | 1): void {
+  if (!previewUid) return;
+  const idx = state.pages.findIndex((p) => p.uid === previewUid);
+  if (idx === -1) return;
+  const nextIdx = idx + delta;
+  if (nextIdx < 0 || nextIdx >= state.pages.length) return;
+  previewUid = state.pages[nextIdx].uid;
+  void renderPreviewContent();
+}
+
+function rotatePreviewPage(delta: 90 | -90): void {
+  if (!previewUid) return;
+  selectOne(state, previewUid);
+  if (rotateSelected(state, delta)) {
+    renderUI();
+    void renderPreviewContent();
+  }
+}
+
 function joinPath(dir: string, fileName: string): string {
   const sep = dir.includes('\\') ? '\\' : '/';
   return dir.endsWith('\\') || dir.endsWith('/') ? `${dir}${fileName}` : `${dir}${sep}${fileName}`;
@@ -521,6 +669,31 @@ shortcutsModalEl.addEventListener('click', (e) => {
   if (e.target === shortcutsModalEl) closeShortcutsModal();
 });
 
+previewModalEl.addEventListener('click', (e) => {
+  if (e.target === previewModalEl) closePreviewModal();
+});
+btnPreviewClose.addEventListener('click', closePreviewModal);
+btnPreviewPrev.addEventListener('click', () => stepPreview(-1));
+btnPreviewNext.addEventListener('click', () => stepPreview(1));
+btnPreviewRotateLeft.addEventListener('click', () => rotatePreviewPage(-90));
+btnPreviewRotateRight.addEventListener('click', () => rotatePreviewPage(90));
+
+thumbSizeSlider.addEventListener('input', () => {
+  setThumbSize(Number(thumbSizeSlider.value));
+});
+
+deskEl.addEventListener(
+  'wheel',
+  (e: WheelEvent) => {
+    if (!e.ctrlKey && !e.metaKey) return;
+    e.preventDefault();
+    const current = Number(thumbSizeSlider.value) || THUMB_SIZE_DEFAULT;
+    const step = e.deltaY < 0 ? 16 : -16;
+    setThumbSize(current + step);
+  },
+  { passive: false }
+);
+
 // Keyboard shortcuts
 window.addEventListener('keydown', (e: KeyboardEvent) => {
   const target = e.target as HTMLElement | null;
@@ -528,6 +701,10 @@ window.addEventListener('keydown', (e: KeyboardEvent) => {
     target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable;
 
   if (e.key === 'Escape') {
+    if (!previewModalEl.hidden) {
+      closePreviewModal();
+      return;
+    }
     if (!splitModalEl.hidden) {
       closeSplitModal();
       return;
@@ -543,6 +720,23 @@ window.addEventListener('keydown', (e: KeyboardEvent) => {
 
   if (isInput) return;
 
+  if (!previewModalEl.hidden) {
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      stepPreview(-1);
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      stepPreview(1);
+    } else if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'r') {
+      e.preventDefault();
+      rotatePreviewPage(e.shiftKey ? -90 : 90);
+    } else if (e.key === ' ') {
+      e.preventDefault();
+      closePreviewModal();
+    }
+    return;
+  }
+
   if (e.key === '?' || (e.key === '/' && e.shiftKey)) {
     e.preventDefault();
     if (shortcutsModalEl.hidden) openShortcutsModal();
@@ -551,6 +745,18 @@ window.addEventListener('keydown', (e: KeyboardEvent) => {
   }
 
   if (!splitModalEl.hidden || !shortcutsModalEl.hidden) return;
+
+  if (e.key === ' ' && state.pages.length > 0) {
+    e.preventDefault();
+    const targetUid =
+      state.lastSelectedUid ??
+      state.selectedUids.values().next().value ??
+      (document.activeElement as HTMLElement | null)?.closest<HTMLElement>('.page-card')?.dataset.uid;
+    if (targetUid) {
+      openPreviewModal(targetUid);
+    }
+    return;
+  }
 
   const mod = e.ctrlKey || e.metaKey;
 
@@ -603,16 +809,34 @@ window.addEventListener('keydown', (e: KeyboardEvent) => {
 
 // Tauri native file drag-and-drop
 void getCurrentWebview().onDragDropEvent((event) => {
+  const dpr = window.devicePixelRatio || 1;
   if (event.payload.type === 'enter' || event.payload.type === 'over') {
-    dropOverlayEl.hidden = false;
+    if (state.pages.length > 0 && 'position' in event.payload && event.payload.position) {
+      dropOverlayEl.hidden = true;
+      grid.showExternalDropMarker(
+        event.payload.position.x / dpr,
+        event.payload.position.y / dpr
+      );
+    } else {
+      grid.hideExternalDropMarker();
+      dropOverlayEl.hidden = false;
+    }
   } else if (event.payload.type === 'leave') {
     dropOverlayEl.hidden = true;
+    grid.hideExternalDropMarker();
   } else if (event.payload.type === 'drop') {
     dropOverlayEl.hidden = true;
-    void addFilesFromPaths(event.payload.paths);
+    grid.hideExternalDropMarker();
+    const pos = event.payload.position;
+    const insertAt =
+      state.pages.length > 0 && pos
+        ? grid.findDropSlot(pos.x / dpr, pos.y / dpr)
+        : undefined;
+    void addFilesFromPaths(event.payload.paths, insertAt);
   }
 });
 
+initThumbSize();
 applyTranslations();
 
 // Files passed on the command line ("Open with Pagefold")

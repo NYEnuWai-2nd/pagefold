@@ -165,9 +165,28 @@
             <span data-i18n="stripMetadata">Remove metadata</span>
           </label>
         </div>
-        <div class="status-counts">
-          <span id="status-selection"></span>
-          <span id="status-total"></span>
+        <div class="status-right">
+          <div class="status-counts">
+            <span id="status-selection"></span>
+            <span id="status-total"></span>
+          </div>
+          <label class="status-zoom" id="thumb-size-label">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="3" y="3" width="7" height="7" rx="1" />
+              <rect x="14" y="3" width="7" height="7" rx="1" />
+              <rect x="3" y="14" width="7" height="7" rx="1" />
+              <rect x="14" y="14" width="7" height="7" rx="1" />
+            </svg>
+            <input
+              id="thumb-size-slider"
+              class="thumb-size-slider"
+              type="range"
+              min="110"
+              max="320"
+              step="10"
+              value="196"
+            />
+          </label>
         </div>
       </footer>
     </div>
@@ -278,10 +297,41 @@
               <dd data-i18n="shortcutUndoRedo">Undo / Redo</dd>
             </div>
             <div class="shortcut-row">
+              <dt><kbd>Space</kbd> / <kbd>Double-click</kbd></dt>
+              <dd data-i18n="shortcutPreview">Quick-look preview</dd>
+            </div>
+            <div class="shortcut-row">
+              <dt><kbd>Ctrl</kbd> + <kbd>Wheel</kbd></dt>
+              <dd data-i18n="shortcutZoom">Resize thumbnails</dd>
+            </div>
+            <div class="shortcut-row">
               <dt><kbd>?</kbd></dt>
               <dd data-i18n="shortcutHelp">Toggle this shortcuts guide</dd>
             </div>
           </dl>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick-look preview modal -->
+    <div id="preview-modal" class="modal-backdrop preview-backdrop" hidden role="dialog" aria-modal="true" aria-labelledby="preview-title">
+      <div class="preview-dialog">
+        <div class="preview-header">
+          <div class="preview-title-group">
+            <span id="preview-title" class="preview-title"></span>
+            <span id="preview-source" class="preview-source"></span>
+          </div>
+          <div class="preview-actions">
+            <button id="btn-preview-prev" class="btn btn-icon" type="button" aria-label="Previous page">←</button>
+            <button id="btn-preview-next" class="btn btn-icon" type="button" aria-label="Next page">→</button>
+            <button id="btn-preview-rotate-left" class="btn btn-icon" type="button" aria-label="Rotate Left">↺</button>
+            <button id="btn-preview-rotate-right" class="btn btn-icon" type="button" aria-label="Rotate Right">↻</button>
+            <button id="btn-preview-close" class="btn btn-icon" type="button" aria-label="Close">×</button>
+          </div>
+        </div>
+        <div class="preview-stage">
+          <canvas id="preview-canvas" class="preview-canvas" hidden></canvas>
+          <img id="preview-img" class="preview-img" alt="" hidden />
         </div>
       </div>
     </div>

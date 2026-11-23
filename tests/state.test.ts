@@ -15,6 +15,7 @@ import {
   selectAll,
   selectOne,
   selectRange,
+  selectSourcePages,
   toggleSelect,
   undo,
 } from '../src/state.ts';
@@ -144,5 +145,21 @@ describe('state management', () => {
     selectOne(state, state.pages[0].uid);
     rotateSelected(state, 90);
     expect(getReferencedSourceIds(state).has('s3')).toBe(false);
+  });
+
+  it('inserts source at a given index and selects all pages of a source', () => {
+    const state = createInitialState();
+    addSource(state, { id: 's1', name: 'a.pdf', kind: 'pdf', pageCount: 2 });
+    addSource(state, { id: 's2', name: 'b.pdf', kind: 'pdf', pageCount: 2, insertAt: 1 });
+
+    expect(state.pages.map((p) => `${p.sourceId}:${p.pageIndex}`)).toEqual([
+      's1:0',
+      's2:0',
+      's2:1',
+      's1:1',
+    ]);
+
+    selectSourcePages(state, 's2');
+    expect([...state.selectedUids]).toEqual([state.pages[1].uid, state.pages[2].uid]);
   });
 });

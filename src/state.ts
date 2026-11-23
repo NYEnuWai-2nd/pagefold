@@ -82,7 +82,7 @@ function pruneSelection(state: AppState): void {
 
 export function addSource(
   state: AppState,
-  input: { id: string; name: string; kind: SourceKind; pageCount: number }
+  input: { id: string; name: string; kind: SourceKind; pageCount: number; insertAt?: number }
 ): { source: SourceFileInfo; addedPages: PageItem[] } {
   pushHistory(state);
 
@@ -104,9 +104,14 @@ export function addSource(
       pageIndex: i,
       rotation: 0,
     };
-    state.pages.push(page);
     addedPages.push(page);
   }
+
+  const insertAt =
+    input.insertAt === undefined
+      ? state.pages.length
+      : Math.max(0, Math.min(state.pages.length, input.insertAt));
+  state.pages.splice(insertAt, 0, ...addedPages);
 
   return { source, addedPages };
 }
@@ -166,6 +171,12 @@ export function selectAll(state: AppState): void {
   if (state.pages.length > 0) {
     state.lastSelectedUid = state.pages[state.pages.length - 1].uid;
   }
+}
+
+export function selectSourcePages(state: AppState, sourceId: string): void {
+  const matching = state.pages.filter((p) => p.sourceId === sourceId);
+  state.selectedUids = new Set(matching.map((p) => p.uid));
+  state.lastSelectedUid = matching.length > 0 ? matching[matching.length - 1].uid : null;
 }
 
 export function clearSelection(state: AppState): void {
