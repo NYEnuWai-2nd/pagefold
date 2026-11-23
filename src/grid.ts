@@ -677,6 +677,9 @@ function canvasToJpegUrl(canvas: HTMLCanvasElement): Promise<string> {
           return;
         }
         resolve(URL.createObjectURL(blob));
+        // Free the canvas backing store right away; only the small JPEG is kept.
+        canvas.width = 0;
+        canvas.height = 0;
       },
       'image/jpeg',
       0.85

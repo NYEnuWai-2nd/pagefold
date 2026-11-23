@@ -161,11 +161,17 @@ export async function renderPdfThumbnail(
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  await page.render({
-    canvas,
-    canvasContext: ctx,
-    viewport: renderViewport,
-  }).promise;
+  try {
+    await page.render({
+      canvas,
+      canvasContext: ctx,
+      viewport: renderViewport,
+    }).promise;
+  } finally {
+    // Release decoded images/fonts held by pdf.js for this page. Scanned pages
+    // decode to tens of MB each, so keeping them around exhausts RAM quickly.
+    page.cleanup();
+  }
 
   return { width: cssWidth, height: cssHeight };
 }
