@@ -1,3 +1,4 @@
+import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { readFile, writeFile } from '@tauri-apps/plugin-fs';
@@ -592,3 +593,10 @@ void getCurrentWebview().onDragDropEvent((event) => {
 });
 
 applyTranslations();
+
+// Files passed on the command line ("Open with Pagefold")
+void invoke<string[]>('startup_files')
+  .then((paths) => {
+    if (paths.length > 0) void addFilesFromPaths(paths);
+  })
+  .catch(() => {});
