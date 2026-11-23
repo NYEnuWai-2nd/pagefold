@@ -1,6 +1,6 @@
 [package]
 name = "pagefold"
-version = "0.1.0"
+version = "0.2.0"
 description = "A tiny, offline desktop app to merge, reorder, rotate, delete, extract and split PDF pages visually."
 authors = ["Pagefold contributors"]
 edition = "2024"

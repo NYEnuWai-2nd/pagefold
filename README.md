@@ -13,11 +13,13 @@ People routinely upload sensitive documents—tax returns, employment contracts,
 
 Pagefold is a ~10 MB double-click desktop app built with **Tauri v2**, **pdf-lib**, and **pdf.js** (with its worker bundled locally).
 
-## Features (v0.1)
+## Features (v0.2)
 
-- **Add PDFs & Images**: Drag and drop PDF, PNG, or JPEG files onto the desk (inserts at the drop position) or use the file picker. Images are automatically placed onto A4 portrait or landscape pages based on their aspect ratio.
+- **Add PDFs & Images**: Drag and drop PDF, PNG, or JPEG files onto the desk (inserts at the drop position) or use the file picker.
+- **Page Size Normalization**: Choose **Page size** in the status bar when exporting: *Match first PDF page* (default, orientation matched to each image), *A4* / *Letter* (uniformly scales and centers all PDF and image pages while preserving vector content and rotation), or *Original size* (96 dpi for images).
+- **Annotations (Text, Rectangle, Highlight)**: Press `E` or click the **Annotate** button (or open quick-look preview) to add text notes, rectangles, and highlights (35% opacity) with color swatches, text sizes (`10`–`32 pt`), drag-to-move, resize handles, and full Undo/Redo support. Annotated cards display a lightweight thumbnail overlay and pencil badge. *(Note: in v0.2, text annotations are flattened as high-DPI images on export and are not selectable text.)*
 - **Visual Page Grid**: Crisp paper-sheet thumbnails rendered lazily with `IntersectionObserver` so even 300-page documents stay responsive. Resize thumbnails with the status-bar slider or `Ctrl+Wheel`. Source files are color-tagged in the sidebar (click a source to select all its pages).
-- **Quick-Look Preview**: Double-click any page or press `Space` to inspect it at full size, step with `←` / `→`, and rotate with `R` / `Shift+R`.
+- **Quick-Look Preview**: Double-click any page or press `Space` to inspect it at full size, step with `←` / `→`, rotate with `R` / `Shift+R`, and annotate.
 - **Multi-Select & Reorder**: Click, `Ctrl/Cmd+Click`, `Shift+Click`, or `Ctrl/Cmd+A` to select pages, then drag-and-drop with pointer events (or `Alt+←` / `Alt+→`) to reorder.
 - **Rotate & Delete with Undo/Redo**: Rotate selected pages ±90° (`R` / `Shift+R`), delete (`Delete` / `Backspace`), and undo/redo (`Ctrl+Z` / `Ctrl+Shift+Z` / `Ctrl+Y`).
 - **Export, Extract & Split**:
@@ -42,6 +44,8 @@ Pagefold is a ~10 MB double-click desktop app built with **Tauri v2**, **pdf-lib
 | `Delete` / `Backspace` | Delete selected pages |
 | `Ctrl` + `Z` / `Ctrl` + `Shift` + `Z` | Undo / Redo |
 | `Space` / `Double-click` | Quick-look preview |
+| `E` | Annotate selected page |
+| `V` / `T` / `B` / `H` | Annotation tools: Select / Text / Rectangle / Highlight |
 | `Ctrl` + `Wheel` | Resize thumbnails |
 | `?` | Toggle keyboard shortcuts overlay |
 
@@ -76,7 +80,6 @@ npm run tauri build -- --no-bundle
 
 ## Roadmap
 
-- Annotations: add text, rectangles and highlights to pages
 - Password-protected PDF unlock / encryption
 - True redaction (flatten)
 - Insert blank page

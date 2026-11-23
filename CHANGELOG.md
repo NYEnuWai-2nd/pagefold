@@ -2,6 +2,15 @@
 
 All notable changes to Pagefold will be documented in this file.
 
+## [0.2.0] - 2026-11-23
+
+### Added
+- **Page size normalization** selector in the status bar (`Match first PDF page`, `A4`, `Letter`, `Original size`), persisted in `localStorage` and translated EN/JA. `A4` / `Letter` modes uniformly scale and center all PDF and image pages via `embedPages` while preserving vector content and page rotation.
+- **Annotations** (Text, Rectangle, Highlight) inside the quick-look preview modal with tool palette (`V` / `T` / `B` / `H`), color swatches, text size (`10`–`32 pt`), move/resize handles, `Delete`, and main toolbar Edit button (`E`).
+- Undoable annotation state operations (`Ctrl+Z` / `Ctrl+Shift+Z` / `Ctrl+Y`) and rotation-aware normalized coordinate mapping (`toPageCoords` / `toViewCoords`).
+- Lightweight thumbnail annotation overlays and pencil badge on annotated page cards.
+- Export support for rectangles, 35%-opacity highlights, and 4× offscreen-canvas rendered text annotations (including Japanese). *(Known limitation in v0.2: text annotations are flattened as images on export.)*
+
 ## [0.1.0] - 2026-11-23
 
 ### Added
