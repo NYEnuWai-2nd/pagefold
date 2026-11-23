@@ -1,8 +1,9 @@
-import { PDFDocument, degrees, type PDFEmbeddedPage, type PDFPage } from 'pdf-lib';
+import { PDFDocument, degrees, rgb, type PDFEmbeddedPage, type PDFPage } from 'pdf-lib';
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfjsWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+import { parseHexColor, renderTextAnnotationPng } from './annotations.ts';
 import { resolvePageSize, type PageSizeMode } from './pageSize.ts';
-import type { PageItem } from './state.ts';
+import type { Annotation, PageItem } from './state.ts';
 
 export class EncryptedPdfError extends Error {
   constructor(fileName: string) {
@@ -294,6 +295,7 @@ export async function exportPagesToPdf(
           itemHeight,
         ]);
         const page = outDoc.addPage([pageWidth, pageHeight]);
+        let annRegion = { x: 0, y: 0, width: pageWidth, height: pageHeight };
 
         if (embedded) {
           const scale = Math.min(pageWidth / embedded.width, pageHeight / embedded.height);
@@ -301,6 +303,7 @@ export async function exportPagesToPdf(
           const drawHeight = embedded.height * scale;
           const x = (pageWidth - drawWidth) / 2;
           const y = (pageHeight - drawHeight) / 2;
+          annRegion = { x, y, width: drawWidth, height: drawHeight };
 
           page.drawPage(embedded, {
             x,
@@ -314,11 +317,25 @@ export async function exportPagesToPdf(
         if (finalAngle !== 0) {
           page.setRotation(degrees(finalAngle));
         }
+
+        if (item.annotations?.length) {
+          await drawAnnotationsOnPage(outDoc, page, item.annotations, annRegion);
+        }
       } else {
         const copied = copiedBySource.get(item.sourceId)![slot];
         const existingAngle = copied.getRotation().angle;
         copied.setRotation(degrees(normalizeDegrees(existingAngle + item.rotation)));
         outDoc.addPage(copied);
+
+        if (item.annotations?.length) {
+          const { width, height } = copied.getSize();
+          await drawAnnotationsOnPage(outDoc, copied, item.annotations, {
+            x: 0,
+            y: 0,
+            width,
+            height,
+          });
+        }
       }
     } else {
       const embedded =
@@ -348,10 +365,72 @@ export async function exportPagesToPdf(
       if (item.rotation !== 0) {
         page.setRotation(degrees(normalizeDegrees(item.rotation)));
       }
+
+      if (item.annotations?.length) {
+        await drawAnnotationsOnPage(outDoc, page, item.annotations, {
+          x,
+          y,
+          width: drawWidth,
+          height: drawHeight,
+        });
+      }
     }
   }
 
   return outDoc.save();
+}
+
+async function drawAnnotationsOnPage(
+  outDoc: PDFDocument,
+  page: PDFPage,
+  annotations: Annotation[],
+  region: { x: number; y: number; width: number; height: number }
+): Promise<void> {
+  for (const ann of annotations) {
+    if (ann.kind === 'rect') {
+      const { r, g, b } = parseHexColor(ann.color);
+      const w = ann.w * region.width;
+      const h = ann.h * region.height;
+      const x = region.x + ann.x * region.width;
+      const y = region.y + region.height - ann.y * region.height - h;
+      page.drawRectangle({
+        x,
+        y,
+        width: w,
+        height: h,
+        borderColor: rgb(r, g, b),
+        borderWidth: ann.stroke,
+        color: undefined,
+      });
+    } else if (ann.kind === 'highlight') {
+      const { r, g, b } = parseHexColor(ann.color);
+      const w = ann.w * region.width;
+      const h = ann.h * region.height;
+      const x = region.x + ann.x * region.width;
+      const y = region.y + region.height - ann.y * region.height - h;
+      page.drawRectangle({
+        x,
+        y,
+        width: w,
+        height: h,
+        color: rgb(r, g, b),
+        opacity: 0.35,
+      });
+    } else if (ann.kind === 'text') {
+      const rendered = await renderTextAnnotationPng(ann.text, ann.size, ann.color);
+      if (rendered) {
+        const embeddedText = await outDoc.embedPng(rendered.pngBytes);
+        const x = region.x + ann.x * region.width;
+        const y = region.y + region.height - ann.y * region.height - rendered.heightPt;
+        page.drawImage(embeddedText, {
+          x,
+          y,
+          width: rendered.widthPt,
+          height: rendered.heightPt,
+        });
+      }
+    }
+  }
 }
 
 function findFirstPdfSource(

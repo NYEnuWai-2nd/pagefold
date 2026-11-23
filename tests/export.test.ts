@@ -201,6 +201,57 @@ describe('exportPagesToPdf', () => {
     expect(outDoc.getPage(1).getWidth()).toBeCloseTo(792, 1);
     expect(outDoc.getPage(1).getHeight()).toBeCloseTo(612, 1);
   });
+
+  it('exports a page with rect and highlight annotations without throwing', async () => {
+    const srcDoc = await PDFDocument.create();
+    srcDoc.addPage([595.28, 841.89]);
+    const loadedPdf = await loadPdfSource('doc.pdf', await srcDoc.save(), { withPreview: false });
+    const sourcesMap = new Map<string, LoadedSource>([['p', loadedPdf]]);
+
+    const pages = [
+      {
+        uid: '1',
+        sourceId: 'p',
+        pageIndex: 0,
+        rotation: 90 as const,
+        annotations: [
+          {
+            id: 'r1',
+            kind: 'rect' as const,
+            x: 0.1,
+            y: 0.2,
+            w: 0.3,
+            h: 0.2,
+            color: '#d93025',
+            stroke: 2,
+          },
+          {
+            id: 'h1',
+            kind: 'highlight' as const,
+            x: 0.2,
+            y: 0.5,
+            w: 0.4,
+            h: 0.08,
+            color: '#facc15',
+          },
+          {
+            id: 't1',
+            kind: 'text' as const,
+            x: 0.15,
+            y: 0.1,
+            text: 'テスト',
+            size: 14,
+            color: '#1f1e1b',
+          },
+        ],
+      },
+    ];
+
+    const outBytes = await exportPagesToPdf(pages, sourcesMap, { stripMetadata: true });
+    const outDoc = await PDFDocument.load(outBytes);
+    expect(outDoc.getPageCount()).toBe(1);
+    expect(outDoc.getPage(0).getRotation().angle).toBe(90);
+  });
 });
 
 function crc32(buf: Uint8Array): number {
