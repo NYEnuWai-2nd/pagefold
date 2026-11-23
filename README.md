@@ -25,6 +25,7 @@ Pagefold is a ~10 MB double-click desktop app built with **Tauri v2**, **pdf-lib
   - **Extract Selected…** — save only the selected pages.
   - **Split…** — split every *N* pages or by custom ranges (e.g., `1-3, 5, 8-10`) into a chosen folder.
 - **Privacy by Default**: **Remove metadata** is enabled by default on export, stripping producer, creator, title, author, and XMP metadata.
+- **Open with Pagefold**: Pass files on the command line (`pagefold.exe a.pdf b.pdf`) or use your file manager's "Open with".
 - **Bilingual UI**: Automatic English / Japanese (`EN` / `日本語`) detection with a one-click header toggle, plus automatic light/dark mode ("calm paper workbench" / "night desk").
 
 ## Keyboard Shortcuts
@@ -47,7 +48,7 @@ Pagefold is a ~10 MB double-click desktop app built with **Tauri v2**, **pdf-lib
 ## Privacy Statement
 
 - All PDF parsing, thumbnail rendering, and PDF assembly run locally inside the app.
-- No network requests are made at runtime; the `pdf.js` worker is bundled directly into the application.
+- No network requests are made at runtime; the `pdf.js` worker is bundled directly into the application, and a strict Content-Security-Policy blocks any remote origin.
 - **Remove metadata** is checked by default so exported PDFs do not leak source document metadata.
 
 ## Build from Source
@@ -75,6 +76,7 @@ npm run tauri build -- --no-bundle
 
 ## Roadmap
 
+- Annotations: add text, rectangles and highlights to pages
 - Password-protected PDF unlock / encryption
 - True redaction (flatten)
 - Insert blank page
