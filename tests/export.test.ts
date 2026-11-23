@@ -1,6 +1,12 @@
+import { deflateSync } from 'node:zlib';
 import { PDFDocument, StandardFonts, degrees } from 'pdf-lib';
 import { describe, expect, it } from 'vitest';
-import { exportPagesToPdf, loadPdfSource, type LoadedSource } from '../src/pdf.ts';
+import {
+  exportPagesToPdf,
+  loadImageSource,
+  loadPdfSource,
+  type LoadedSource,
+} from '../src/pdf.ts';
 import {
   addSource,
   createInitialState,
@@ -130,4 +136,115 @@ describe('exportPagesToPdf', () => {
     const outBytes = await exportPagesToPdf(state.pages, sourcesMap, { stripMetadata: true });
     expect(outBytes.byteLength).toBeLessThan(srcBytes.byteLength * 2);
   });
+
+  it('normalizes A4 PDF + 1000x500 PNG in auto mode to A4 portrait and A4 landscape', async () => {
+    const srcDoc = await PDFDocument.create();
+    srcDoc.addPage([595.28, 841.89]); // A4 portrait
+    const loadedPdf = await loadPdfSource('a4.pdf', await srcDoc.save(), { withPreview: false });
+
+    const pngBytes = createSolidPng(1000, 500);
+    const loadedImg = loadImageSource('wide.png', 'image/png', pngBytes, { withPreview: false });
+
+    const sourcesMap = new Map<string, LoadedSource>([
+      ['p', loadedPdf],
+      ['i', loadedImg],
+    ]);
+
+    const pages = [
+      { uid: '1', sourceId: 'p', pageIndex: 0, rotation: 0 as const },
+      { uid: '2', sourceId: 'i', pageIndex: 0, rotation: 0 as const },
+    ];
+
+    const outBytes = await exportPagesToPdf(pages, sourcesMap, {
+      stripMetadata: true,
+      pageSize: 'auto',
+    });
+    const outDoc = await PDFDocument.load(outBytes);
+    expect(outDoc.getPageCount()).toBe(2);
+
+    expect(outDoc.getPage(0).getWidth()).toBeCloseTo(595.28, 1);
+    expect(outDoc.getPage(0).getHeight()).toBeCloseTo(841.89, 1);
+    expect(outDoc.getPage(1).getWidth()).toBeCloseTo(841.89, 1);
+    expect(outDoc.getPage(1).getHeight()).toBeCloseTo(595.28, 1);
+  });
+
+  it('normalizes all PDF and image pages to Letter in letter mode while preserving rotation', async () => {
+    const srcDoc = await PDFDocument.create();
+    const p0 = srcDoc.addPage([595.28, 841.89]);
+    p0.setRotation(degrees(90));
+    const loadedPdf = await loadPdfSource('a4.pdf', await srcDoc.save(), { withPreview: false });
+
+    const pngBytes = createSolidPng(1000, 500);
+    const loadedImg = loadImageSource('wide.png', 'image/png', pngBytes, { withPreview: false });
+
+    const sourcesMap = new Map<string, LoadedSource>([
+      ['p', loadedPdf],
+      ['i', loadedImg],
+    ]);
+
+    const pages = [
+      { uid: '1', sourceId: 'p', pageIndex: 0, rotation: 0 as const },
+      { uid: '2', sourceId: 'i', pageIndex: 0, rotation: 0 as const },
+    ];
+
+    const outBytes = await exportPagesToPdf(pages, sourcesMap, {
+      stripMetadata: true,
+      pageSize: 'letter',
+    });
+    const outDoc = await PDFDocument.load(outBytes);
+    expect(outDoc.getPageCount()).toBe(2);
+
+    expect(outDoc.getPage(0).getWidth()).toBeCloseTo(612, 1);
+    expect(outDoc.getPage(0).getHeight()).toBeCloseTo(792, 1);
+    expect(outDoc.getPage(0).getRotation().angle).toBe(90);
+
+    expect(outDoc.getPage(1).getWidth()).toBeCloseTo(792, 1);
+    expect(outDoc.getPage(1).getHeight()).toBeCloseTo(612, 1);
+  });
 });
+
+function crc32(buf: Uint8Array): number {
+  let c = 0xffffffff;
+  for (let i = 0; i < buf.length; i++) {
+    c ^= buf[i];
+    for (let k = 0; k < 8; k++) {
+      c = (c >>> 1) ^ (c & 1 ? 0xedb88320 : 0);
+    }
+  }
+  return (c ^ 0xffffffff) >>> 0;
+}
+
+function makePngChunk(type: string, data: Uint8Array): Uint8Array {
+  const out = new Uint8Array(12 + data.length);
+  const view = new DataView(out.buffer);
+  view.setUint32(0, data.length, false);
+  for (let i = 0; i < 4; i++) out[4 + i] = type.charCodeAt(i);
+  out.set(data, 8);
+  view.setUint32(8 + data.length, crc32(out.subarray(4, 8 + data.length)), false);
+  return out;
+}
+
+function createSolidPng(width: number, height: number): Uint8Array {
+  const sig = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
+  const ihdrData = new Uint8Array(13);
+  const ihdrView = new DataView(ihdrData.buffer);
+  ihdrView.setUint32(0, width, false);
+  ihdrView.setUint32(4, height, false);
+  ihdrData[8] = 8; // bit depth
+  ihdrData[9] = 0; // grayscale
+
+  const raw = new Uint8Array(height * (width + 1));
+  const idatData = deflateSync(raw);
+
+  const ihdr = makePngChunk('IHDR', ihdrData);
+  const idat = makePngChunk('IDAT', idatData);
+  const iend = makePngChunk('IEND', new Uint8Array(0));
+
+  const out = new Uint8Array(sig.length + ihdr.length + idat.length + iend.length);
+  let offset = 0;
+  for (const part of [sig, ihdr, idat, iend]) {
+    out.set(part, offset);
+    offset += part.length;
+  }
+  return out;
+}

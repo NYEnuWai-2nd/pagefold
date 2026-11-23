@@ -1,6 +1,7 @@
-import { PDFDocument, degrees, type PDFPage } from 'pdf-lib';
+import { PDFDocument, degrees, type PDFEmbeddedPage, type PDFPage } from 'pdf-lib';
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfjsWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+import { resolvePageSize, type PageSizeMode } from './pageSize.ts';
 import type { PageItem } from './state.ts';
 
 export class EncryptedPdfError extends Error {
@@ -167,11 +168,26 @@ function normalizeDegrees(deg: number): number {
   return ((deg % 360) + 360) % 360;
 }
 
-const A4_PORTRAIT: [number, number] = [595.28, 841.89];
-const A4_LANDSCAPE: [number, number] = [841.89, 595.28];
-
 export interface ExportOptions {
   stripMetadata: boolean;
+  pageSize?: PageSizeMode;
+}
+
+const PX_TO_PT_96DPI = 0.75;
+
+function findFirstPdfPageSize(
+  pages: PageItem[],
+  sources: Map<string, LoadedSource>
+): [number, number] | null {
+  for (const item of pages) {
+    const src = sources.get(item.sourceId);
+    if (src && src.kind === 'pdf') {
+      const page = src.pdfDoc.getPage(item.pageIndex);
+      const { width, height } = page.getSize();
+      return [width, height];
+    }
+  }
+  return null;
 }
 
 export async function exportPagesToPdf(
@@ -179,6 +195,10 @@ export async function exportPagesToPdf(
   sources: Map<string, LoadedSource>,
   options: ExportOptions
 ): Promise<Uint8Array> {
+  const pageSizeMode: PageSizeMode = options.pageSize ?? 'auto';
+  const normalizeAllPdfPages = pageSizeMode === 'a4' || pageSizeMode === 'letter';
+  const firstPdfSize = findFirstPdfPageSize(pages, sources);
+
   const outDoc = await PDFDocument.create({
     updateMetadata: !options.stripMetadata,
   });
@@ -208,8 +228,8 @@ export async function exportPagesToPdf(
     }
   }
 
-  // Group page indices per PDF source so copyPages is called once per source
-  // (calling copyPages per page duplicates shared fonts/images).
+  // Group page indices per PDF source so copyPages / embedPages is called once per source
+  // (calling per page duplicates shared fonts/images).
   const indicesBySource = new Map<string, number[]>();
   const itemCopySlot = new Map<PageItem, number>();
 
@@ -230,10 +250,31 @@ export async function exportPagesToPdf(
   }
 
   const copiedBySource = new Map<string, PDFPage[]>();
+  const embeddedBySource = new Map<string, Array<PDFEmbeddedPage | null>>();
   for (const [sourceId, indices] of indicesBySource) {
     const src = sources.get(sourceId) as LoadedPdfSource;
-    const copiedPages = await outDoc.copyPages(src.pdfDoc, indices);
-    copiedBySource.set(sourceId, copiedPages);
+    if (normalizeAllPdfPages) {
+      const srcPages = indices.map((idx) => src.pdfDoc.getPage(idx));
+      const nonEmptyIndices: number[] = [];
+      const nonEmptyPages: PDFPage[] = [];
+      srcPages.forEach((p, slot) => {
+        if (p.node.Contents()) {
+          nonEmptyIndices.push(slot);
+          nonEmptyPages.push(p);
+        }
+      });
+      const slots: Array<PDFEmbeddedPage | null> = new Array(srcPages.length).fill(null);
+      if (nonEmptyPages.length > 0) {
+        const embeddedPages = await outDoc.embedPages(nonEmptyPages);
+        nonEmptyIndices.forEach((slot, i) => {
+          slots[slot] = embeddedPages[i];
+        });
+      }
+      embeddedBySource.set(sourceId, slots);
+    } else {
+      const copiedPages = await outDoc.copyPages(src.pdfDoc, indices);
+      copiedBySource.set(sourceId, copiedPages);
+    }
   }
 
   for (const item of pages) {
@@ -241,17 +282,54 @@ export async function exportPagesToPdf(
 
     if (src.kind === 'pdf') {
       const slot = itemCopySlot.get(item)!;
-      const copied = copiedBySource.get(item.sourceId)![slot];
-      const existingAngle = copied.getRotation().angle;
-      copied.setRotation(degrees(normalizeDegrees(existingAngle + item.rotation)));
-      outDoc.addPage(copied);
+      if (normalizeAllPdfPages) {
+        const srcPage = src.pdfDoc.getPage(item.pageIndex);
+        const existingAngle = srcPage.getRotation().angle;
+        const embedded = embeddedBySource.get(item.sourceId)![slot];
+        const srcSize = srcPage.getSize();
+        const itemWidth = embedded ? embedded.width : srcSize.width;
+        const itemHeight = embedded ? embedded.height : srcSize.height;
+        const [pageWidth, pageHeight] = resolvePageSize(pageSizeMode, firstPdfSize, [
+          itemWidth,
+          itemHeight,
+        ]);
+        const page = outDoc.addPage([pageWidth, pageHeight]);
+
+        if (embedded) {
+          const scale = Math.min(pageWidth / embedded.width, pageHeight / embedded.height);
+          const drawWidth = embedded.width * scale;
+          const drawHeight = embedded.height * scale;
+          const x = (pageWidth - drawWidth) / 2;
+          const y = (pageHeight - drawHeight) / 2;
+
+          page.drawPage(embedded, {
+            x,
+            y,
+            width: drawWidth,
+            height: drawHeight,
+          });
+        }
+
+        const finalAngle = normalizeDegrees(existingAngle + item.rotation);
+        if (finalAngle !== 0) {
+          page.setRotation(degrees(finalAngle));
+        }
+      } else {
+        const copied = copiedBySource.get(item.sourceId)![slot];
+        const existingAngle = copied.getRotation().angle;
+        copied.setRotation(degrees(normalizeDegrees(existingAngle + item.rotation)));
+        outDoc.addPage(copied);
+      }
     } else {
       const embedded =
         src.mimeType === 'image/png'
           ? await outDoc.embedPng(src.bytes)
           : await outDoc.embedJpg(src.bytes);
-      const isLandscape = embedded.width > embedded.height;
-      const [pageWidth, pageHeight] = isLandscape ? A4_LANDSCAPE : A4_PORTRAIT;
+      const itemPtSize: [number, number] = [
+        embedded.width * PX_TO_PT_96DPI,
+        embedded.height * PX_TO_PT_96DPI,
+      ];
+      const [pageWidth, pageHeight] = resolvePageSize(pageSizeMode, firstPdfSize, itemPtSize);
       const page = outDoc.addPage([pageWidth, pageHeight]);
 
       const scale = Math.min(pageWidth / embedded.width, pageHeight / embedded.height);

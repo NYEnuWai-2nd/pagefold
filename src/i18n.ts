@@ -17,6 +17,12 @@ export interface Translations {
   splitPdf: string;
   stripMetadata: string;
   stripMetadataTooltip: string;
+  pageSizeLabel: string;
+  pageSizeTooltip: string;
+  pageSizeAuto: string;
+  pageSizeA4: string;
+  pageSizeLetter: string;
+  pageSizeOriginal: string;
   privacyFooter: string;
   sourcesHeading: string;
   noSources: string;
@@ -89,6 +95,12 @@ const en: Translations = {
   splitPdf: 'Split…',
   stripMetadata: 'Remove metadata',
   stripMetadataTooltip: 'Strip title, author, producer, and XMP metadata on export',
+  pageSizeLabel: 'Page size',
+  pageSizeTooltip: 'Target page size when exporting',
+  pageSizeAuto: 'Match first PDF page',
+  pageSizeA4: 'A4',
+  pageSizeLetter: 'Letter',
+  pageSizeOriginal: 'Original size',
   privacyFooter: 'Offline. Your files never leave this computer.',
   sourcesHeading: 'Source Files',
   noSources: 'No files loaded yet.',
@@ -162,6 +174,12 @@ const ja: Translations = {
   splitPdf: '分割…',
   stripMetadata: 'メタデータを削除',
   stripMetadataTooltip: '書き出し時に作成者・タイトル・XMP メタデータを削除します',
+  pageSizeLabel: 'ページサイズ',
+  pageSizeTooltip: '書き出し時のページサイズ',
+  pageSizeAuto: '最初のPDFに合わせる',
+  pageSizeA4: 'A4',
+  pageSizeLetter: 'Letter',
+  pageSizeOriginal: '元のサイズ',
   privacyFooter: '完全オフライン。ファイルがこのPCの外に出ることはありません。',
   sourcesHeading: '読み込み済みファイル',
   noSources: 'ファイルがまだありません。',

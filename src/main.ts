@@ -4,6 +4,7 @@ import { open, save } from '@tauri-apps/plugin-dialog';
 import { readFile, writeFile } from '@tauri-apps/plugin-fs';
 import { PageGridController } from './grid.ts';
 import { detectLocale, dictionaries, type Locale } from './i18n.ts';
+import { isPageSizeMode, type PageSizeMode } from './pageSize.ts';
 import {
   detectFileKind,
   disposeLoadedSource,
@@ -65,6 +66,8 @@ const btnHelp = getEl<HTMLButtonElement>('btn-help');
 const btnLang = getEl<HTMLButtonElement>('btn-lang');
 const chkStripMetadata = getEl<HTMLInputElement>('chk-strip-metadata');
 const stripMetadataLabel = getEl<HTMLLabelElement>('strip-metadata-label');
+const selectPageSize = getEl<HTMLSelectElement>('select-page-size');
+const pageSizeLabel = getEl<HTMLLabelElement>('page-size-label');
 
 const sourceListEl = getEl<HTMLUListElement>('source-list');
 const sourceEmptyEl = getEl<HTMLParagraphElement>('source-empty');
@@ -187,6 +190,8 @@ function applyTranslations(): void {
   btnHelp.setAttribute('aria-label', tr.shortcutsTitle);
   btnLang.textContent = tr.langToggleLabel;
   stripMetadataLabel.title = tr.stripMetadataTooltip;
+  pageSizeLabel.title = tr.pageSizeTooltip;
+  selectPageSize.setAttribute('aria-label', tr.pageSizeLabel);
   thumbSizeLabel.title = tr.thumbSizeLabel;
   thumbSizeSlider.setAttribute('aria-label', tr.thumbSizeLabel);
   btnPreviewRotateLeft.title = `${tr.rotateLeft} (Shift+R)`;
@@ -401,6 +406,7 @@ async function handleExport(onlySelected: boolean): Promise<void> {
   try {
     const bytes = await exportPagesToPdf(targetPages, loadedSources, {
       stripMetadata: chkStripMetadata.checked,
+      pageSize: getPageSizeMode(),
     });
     await writeFile(savePath, bytes);
     showToast(tr.toastSaved(targetPages.length, savePath), 'success');
@@ -484,9 +490,27 @@ function closeShortcutsModal(): void {
 }
 
 const THUMB_SIZE_KEY = 'pagefold.thumbSize';
+const PAGE_SIZE_KEY = 'pagefold.pageSize';
 const THUMB_SIZE_MIN = 110;
 const THUMB_SIZE_MAX = 320;
 const THUMB_SIZE_DEFAULT = 196;
+
+function getPageSizeMode(): PageSizeMode {
+  return isPageSizeMode(selectPageSize.value) ? selectPageSize.value : 'auto';
+}
+
+function initPageSize(): void {
+  let saved: PageSizeMode = 'auto';
+  try {
+    const raw = window.localStorage.getItem(PAGE_SIZE_KEY);
+    if (raw && isPageSizeMode(raw)) {
+      saved = raw;
+    }
+  } catch {
+    // Ignore storage errors
+  }
+  selectPageSize.value = saved;
+}
 
 function setThumbSize(px: number): void {
   const clamped = Math.max(THUMB_SIZE_MIN, Math.min(THUMB_SIZE_MAX, Math.round(px)));
@@ -612,6 +636,7 @@ async function handleSplitSubmit(e: SubmitEvent): Promise<void> {
       const partPages = res.parts[i].map((idx) => state.pages[idx]);
       const bytes = await exportPagesToPdf(partPages, loadedSources, {
         stripMetadata: chkStripMetadata.checked,
+        pageSize: getPageSizeMode(),
       });
       const outPath = joinPath(folder, `${baseName}-part${i + 1}.pdf`);
       await writeFile(outPath, bytes);
@@ -680,6 +705,14 @@ btnPreviewRotateRight.addEventListener('click', () => rotatePreviewPage(90));
 
 thumbSizeSlider.addEventListener('input', () => {
   setThumbSize(Number(thumbSizeSlider.value));
+});
+
+selectPageSize.addEventListener('change', () => {
+  try {
+    window.localStorage.setItem(PAGE_SIZE_KEY, getPageSizeMode());
+  } catch {
+    // Ignore storage errors
+  }
 });
 
 deskEl.addEventListener(
@@ -837,6 +870,7 @@ void getCurrentWebview().onDragDropEvent((event) => {
 });
 
 initThumbSize();
+initPageSize();
 applyTranslations();
 
 // Files passed on the command line ("Open with Pagefold")
