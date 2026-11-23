@@ -15,8 +15,9 @@ Pagefold is a ~10 MB double-click desktop app built with **Tauri v2**, **pdf-lib
 
 ## Features (v0.1)
 
-- **Add PDFs & Images**: Drag and drop PDF, PNG, or JPEG files onto the window, or use the file picker. Images are automatically placed onto A4 portrait or landscape pages based on their aspect ratio.
-- **Visual Page Grid**: Crisp thumbnails rendered lazily with `IntersectionObserver` so even 300-page documents stay responsive. Source files are color-tagged and listed in the sidebar.
+- **Add PDFs & Images**: Drag and drop PDF, PNG, or JPEG files onto the desk (inserts at the drop position) or use the file picker. Images are automatically placed onto A4 portrait or landscape pages based on their aspect ratio.
+- **Visual Page Grid**: Crisp paper-sheet thumbnails rendered lazily with `IntersectionObserver` so even 300-page documents stay responsive. Resize thumbnails with the status-bar slider or `Ctrl+Wheel`. Source files are color-tagged in the sidebar (click a source to select all its pages).
+- **Quick-Look Preview**: Double-click any page or press `Space` to inspect it at full size, step with `←` / `→`, and rotate with `R` / `Shift+R`.
 - **Multi-Select & Reorder**: Click, `Ctrl/Cmd+Click`, `Shift+Click`, or `Ctrl/Cmd+A` to select pages, then drag-and-drop with pointer events (or `Alt+←` / `Alt+→`) to reorder.
 - **Rotate & Delete with Undo/Redo**: Rotate selected pages ±90° (`R` / `Shift+R`), delete (`Delete` / `Backspace`), and undo/redo (`Ctrl+Z` / `Ctrl+Shift+Z` / `Ctrl+Y`).
 - **Export, Extract & Split**:
@@ -39,6 +40,8 @@ Pagefold is a ~10 MB double-click desktop app built with **Tauri v2**, **pdf-lib
 | `R` / `Shift` + `R` | Rotate selected ±90° |
 | `Delete` / `Backspace` | Delete selected pages |
 | `Ctrl` + `Z` / `Ctrl` + `Shift` + `Z` | Undo / Redo |
+| `Space` / `Double-click` | Quick-look preview |
+| `Ctrl` + `Wheel` | Resize thumbnails |
 | `?` | Toggle keyboard shortcuts overlay |
 
 ## Privacy Statement
