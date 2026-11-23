@@ -126,12 +126,11 @@ input {
 .toolbar {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 14px;
+  gap: 6px;
+  padding: 8px 12px;
   background: var(--bg-surface);
   border-bottom: 1px solid var(--border-hairline);
   flex-shrink: 0;
-  overflow-x: auto;
 }
 
 .toolbar-group {
@@ -227,19 +226,28 @@ input {
   color: var(--text-secondary);
 }
 
-.btn-icon .btn-label {
-  display: none;
-}
-
-@media (min-width: 1180px) {
-  .btn-icon .btn-label {
-    display: inline;
-  }
-}
-
 .btn-icon:hover:not(:disabled) {
   background: var(--bg-subtle);
   color: var(--text-primary);
+}
+
+@media (max-width: 900px) {
+  .toolbar {
+    gap: 4px;
+    padding: 6px 10px;
+  }
+
+  .toolbar-group {
+    gap: 4px;
+  }
+
+  .btn {
+    padding: 0 8px;
+  }
+
+  .btn-icon {
+    padding: 0 6px;
+  }
 }
 
 .btn-danger:hover:not(:disabled) {
@@ -467,24 +475,31 @@ input {
 .page-card {
   display: flex;
   flex-direction: column;
-  background: var(--bg-card);
-  border: 1.5px solid var(--border-hairline);
-  border-radius: var(--radius-md);
-  padding: 10px;
-  box-shadow: var(--shadow-card);
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: none;
+  padding: 4px;
   cursor: grab;
-  transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease, background-color 120ms ease;
+  border-radius: var(--radius-sm);
 }
 
-.page-card:hover {
+.page-card:hover .thumb-stage {
+  transform: translateY(-2px);
+}
+
+.page-card:hover .thumb-img {
   box-shadow: var(--shadow-card-hover);
-  border-color: var(--border-strong);
 }
 
-.page-card.is-selected {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--bg-card) 92%, var(--accent) 8%);
-  box-shadow: 0 0 0 2px var(--accent-tint), var(--shadow-card);
+.page-card.is-selected .thumb-stage {
+  transform: translateY(-2px);
+}
+
+.page-card.is-selected .thumb-img {
+  outline: 2.5px solid var(--accent);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--accent-tint), var(--shadow-card-hover);
 }
 
 .page-card.is-dragging {
@@ -500,17 +515,18 @@ input {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg-subtle);
-  border-radius: 6px;
-  overflow: hidden;
+  background: transparent;
+  overflow: visible;
+  transition: transform 140ms ease;
 }
 
 .thumb-stage::before {
   content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(110deg, transparent 35%, rgba(255, 255, 255, 0.25) 50%, transparent 65%);
-  opacity: 0.5;
+  width: 74%;
+  height: 94%;
+  border-radius: 3px;
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-card);
 }
 
 .thumb-stage.is-loaded::before {
@@ -518,38 +534,40 @@ input {
 }
 
 .thumb-img {
-  max-width: 92%;
-  max-height: 92%;
+  max-width: 96%;
+  max-height: 96%;
   object-fit: contain;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.14);
+  border-radius: 2px;
+  box-shadow: var(--shadow-card);
   background: #ffffff;
-  transition: transform 160ms ease;
+  transition: transform 160ms ease, box-shadow 140ms ease;
   pointer-events: none;
 }
 
 .thumb-img.is-quarter-rotated {
-  max-width: 92cqh;
-  max-height: 92cqw;
+  max-width: 96cqh;
+  max-height: 96cqw;
 }
 
 .rotation-badge {
   position: absolute;
-  top: 6px;
-  right: 6px;
+  top: 4px;
+  right: 4px;
   padding: 1px 6px;
   border-radius: 999px;
-  background: rgba(20, 20, 18, 0.72);
+  background: rgba(20, 20, 18, 0.76);
   color: #ffffff;
   font-size: 11px;
   font-variant-numeric: tabular-nums;
+  z-index: 2;
 }
 
 .page-meta {
+  width: 100%;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   gap: 8px;
-  margin-top: 8px;
   padding: 0 2px;
 }
 
@@ -613,7 +631,8 @@ input {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 30px;
+  gap: 12px;
+  height: 32px;
   padding: 0 14px;
   background: var(--bg-surface);
   border-top: 1px solid var(--border-hairline);
@@ -622,10 +641,33 @@ input {
   flex-shrink: 0;
 }
 
+.status-left {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
 .status-privacy {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  white-space: nowrap;
+}
+
+.status-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.status-checkbox input {
+  accent-color: var(--accent);
+  cursor: pointer;
+  margin: 0;
 }
 
 .status-counts {

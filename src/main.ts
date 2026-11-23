@@ -151,11 +151,17 @@ function applyTranslations(): void {
 
   btnAdd.title = tr.addFilesTooltip;
   btnRotateLeft.title = `${tr.rotateLeft} (Shift+R)`;
+  btnRotateLeft.setAttribute('aria-label', tr.rotateLeft);
   btnRotateRight.title = `${tr.rotateRight} (R)`;
+  btnRotateRight.setAttribute('aria-label', tr.rotateRight);
   btnDelete.title = `${tr.deleteSelected} (Delete)`;
+  btnDelete.setAttribute('aria-label', tr.deleteSelected);
   btnUndo.title = `${tr.undo} (Ctrl+Z)`;
+  btnUndo.setAttribute('aria-label', tr.undo);
   btnRedo.title = `${tr.redo} (Ctrl+Shift+Z)`;
+  btnRedo.setAttribute('aria-label', tr.redo);
   btnHelp.title = tr.shortcutsButtonTooltip;
+  btnHelp.setAttribute('aria-label', tr.shortcutsTitle);
   btnLang.textContent = tr.langToggleLabel;
   stripMetadataLabel.title = tr.stripMetadataTooltip;
   inputRanges.placeholder = tr.splitRangesPlaceholder;
