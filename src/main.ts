@@ -3,6 +3,7 @@ import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { readFile, writeFile } from '@tauri-apps/plugin-fs';
 import { AnnotationEditor, type AnnotationTool } from './annotationEditor.ts';
+import { isCompressPreset, type CompressPreset } from './compress.ts';
 import { PageGridController } from './grid.ts';
 import { detectLocale, dictionaries, type Locale } from './i18n.ts';
 import { isPageSizeMode, type PageSizeMode } from './pageSize.ts';
@@ -74,6 +75,8 @@ const chkStripMetadata = getEl<HTMLInputElement>('chk-strip-metadata');
 const stripMetadataLabel = getEl<HTMLLabelElement>('strip-metadata-label');
 const selectPageSize = getEl<HTMLSelectElement>('select-page-size');
 const pageSizeLabel = getEl<HTMLLabelElement>('page-size-label');
+const selectCompress = getEl<HTMLSelectElement>('select-compress');
+const compressLabel = getEl<HTMLLabelElement>('compress-label');
 
 const sourceListEl = getEl<HTMLUListElement>('source-list');
 const sourceEmptyEl = getEl<HTMLParagraphElement>('source-empty');
@@ -255,6 +258,8 @@ function applyTranslations(): void {
   stripMetadataLabel.title = tr.stripMetadataTooltip;
   pageSizeLabel.title = tr.pageSizeTooltip;
   selectPageSize.setAttribute('aria-label', tr.pageSizeLabel);
+  compressLabel.title = tr.compressTooltip;
+  selectCompress.setAttribute('aria-label', tr.compressLabel);
   thumbSizeLabel.title = tr.thumbSizeLabel;
   thumbSizeSlider.setAttribute('aria-label', tr.thumbSizeLabel);
   btnPreviewRotateLeft.title = `${tr.rotateLeft} (Shift+R)`;
@@ -452,6 +457,19 @@ function defaultExportFileName(): string {
   return 'pagefold-merged.pdf';
 }
 
+function computeSourceBytesSum(pages: readonly { sourceId: string }[]): number {
+  const seen = new Set<string>();
+  let total = 0;
+  for (const p of pages) {
+    if (seen.has(p.sourceId)) continue;
+    seen.add(p.sourceId);
+    const src = loadedSources.get(p.sourceId);
+    if (!src) continue;
+    total += src.kind === 'pdf' ? src.byteLength : src.bytes.byteLength;
+  }
+  return total;
+}
+
 async function handleExport(onlySelected: boolean): Promise<void> {
   const tr = t();
   const targetPages = onlySelected
@@ -471,9 +489,15 @@ async function handleExport(onlySelected: boolean): Promise<void> {
     const bytes = await exportPagesToPdf(targetPages, loadedSources, {
       stripMetadata: chkStripMetadata.checked,
       pageSize: getPageSizeMode(),
+      compress: getCompressPreset(),
     });
     await writeFile(savePath, bytes);
-    showToast(tr.toastSaved(targetPages.length, savePath), 'success');
+    const originalBytes = computeSourceBytesSum(targetPages);
+    const msg =
+      originalBytes > 0
+        ? tr.toastSavedWithSize(targetPages.length, originalBytes, bytes.byteLength)
+        : tr.toastSaved(targetPages.length, savePath);
+    showToast(msg, 'success');
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     showToast(tr.toastExportError(msg), 'error');
@@ -555,12 +579,17 @@ function closeShortcutsModal(): void {
 
 const THUMB_SIZE_KEY = 'pagefold.thumbSize';
 const PAGE_SIZE_KEY = 'pagefold.pageSize';
+const COMPRESS_KEY = 'pagefold.compress';
 const THUMB_SIZE_MIN = 110;
 const THUMB_SIZE_MAX = 320;
 const THUMB_SIZE_DEFAULT = 196;
 
 function getPageSizeMode(): PageSizeMode {
   return isPageSizeMode(selectPageSize.value) ? selectPageSize.value : 'auto';
+}
+
+function getCompressPreset(): CompressPreset {
+  return isCompressPreset(selectCompress.value) ? selectCompress.value : 'off';
 }
 
 function initPageSize(): void {
@@ -574,6 +603,19 @@ function initPageSize(): void {
     // Ignore storage errors
   }
   selectPageSize.value = saved;
+}
+
+function initCompressPreset(): void {
+  let saved: CompressPreset = 'off';
+  try {
+    const raw = window.localStorage.getItem(COMPRESS_KEY);
+    if (raw && isCompressPreset(raw)) {
+      saved = raw;
+    }
+  } catch {
+    // Ignore storage errors
+  }
+  selectCompress.value = saved;
 }
 
 function setThumbSize(px: number): void {
@@ -755,6 +797,7 @@ async function handleSplitSubmit(e: SubmitEvent): Promise<void> {
       const bytes = await exportPagesToPdf(partPages, loadedSources, {
         stripMetadata: chkStripMetadata.checked,
         pageSize: getPageSizeMode(),
+        compress: getCompressPreset(),
       });
       const outPath = joinPath(folder, `${baseName}-part${i + 1}.pdf`);
       await writeFile(outPath, bytes);
@@ -866,6 +909,14 @@ thumbSizeSlider.addEventListener('input', () => {
 selectPageSize.addEventListener('change', () => {
   try {
     window.localStorage.setItem(PAGE_SIZE_KEY, getPageSizeMode());
+  } catch {
+    // Ignore storage errors
+  }
+});
+
+selectCompress.addEventListener('change', () => {
+  try {
+    window.localStorage.setItem(COMPRESS_KEY, getCompressPreset());
   } catch {
     // Ignore storage errors
   }
@@ -1088,6 +1139,7 @@ void getCurrentWebview().onDragDropEvent((event) => {
 
 initThumbSize();
 initPageSize();
+initCompressPreset();
 applyTranslations();
 
 // Files passed on the command line ("Open with Pagefold")

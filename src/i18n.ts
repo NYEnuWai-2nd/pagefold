@@ -1,3 +1,5 @@
+import { formatBytes } from './compress.ts';
+
 export type Locale = 'en' | 'ja';
 
 export interface Translations {
@@ -28,6 +30,12 @@ export interface Translations {
   pageSizeLetter: string;
   pageSizeLegal: string;
   pageSizeOriginal: string;
+  compressLabel: string;
+  compressTooltip: string;
+  compressOff: string;
+  compressLight: string;
+  compressStandard: string;
+  compressStrong: string;
   privacyFooter: string;
   sourcesHeading: string;
   noSources: string;
@@ -57,6 +65,7 @@ export interface Translations {
   splitConfirm: string;
   splitPreviewParts: (n: number) => string;
   toastSaved: (count: number, path: string) => string;
+  toastSavedWithSize: (count: number, before: number, after: number) => string;
   toastSplitSaved: (parts: number, dir: string) => string;
   toastEncryptedPdf: (name: string) => string;
   toastLoadError: (name: string, msg: string) => string;
@@ -120,6 +129,12 @@ const en: Translations = {
   pageSizeLetter: 'Letter',
   pageSizeLegal: 'Legal',
   pageSizeOriginal: 'Original size',
+  compressLabel: 'Compress',
+  compressTooltip: 'Compress embedded JPEG images on export (keeps vector text)',
+  compressOff: 'Off',
+  compressLight: 'Light',
+  compressStandard: 'Standard',
+  compressStrong: 'Strong',
   privacyFooter: 'Offline. Your files never leave this computer.',
   sourcesHeading: 'Source Files',
   noSources: 'No files loaded yet.',
@@ -149,6 +164,11 @@ const en: Translations = {
   splitConfirm: 'Choose Folder & Split…',
   splitPreviewParts: (n) => (n === 1 ? 'Will create 1 file' : `Will create ${n} files`),
   toastSaved: (count, path) => `Saved ${count} ${count === 1 ? 'page' : 'pages'} to ${path}`,
+  toastSavedWithSize: (count, before, after) => {
+    const pct = before > 0 ? Math.round(((after - before) / before) * 100) : 0;
+    const delta = pct < 0 ? `\u2212${Math.abs(pct)}%` : pct > 0 ? `+${pct}%` : '0%';
+    return `Saved ${count} ${count === 1 ? 'page' : 'pages'} · ${formatBytes(before)} → ${formatBytes(after)} (${delta})`;
+  },
   toastSplitSaved: (parts, dir) => `Saved ${parts} split PDFs to ${dir}`,
   toastEncryptedPdf: (name) => `${name}: Password-protected PDFs aren't supported yet`,
   toastLoadError: (name, msg) => `Could not load ${name}: ${msg}`,
@@ -213,6 +233,12 @@ const ja: Translations = {
   pageSizeLetter: 'Letter',
   pageSizeLegal: 'Legal',
   pageSizeOriginal: '元のサイズ',
+  compressLabel: '圧縮',
+  compressTooltip: '書き出し時に埋め込み JPEG 画像を圧縮（文字はベクターのまま維持）',
+  compressOff: 'オフ',
+  compressLight: '弱',
+  compressStandard: '標準',
+  compressStrong: '強',
   privacyFooter: '完全オフライン。ファイルがこのPCの外に出ることはありません。',
   sourcesHeading: '読み込み済みファイル',
   noSources: 'ファイルがまだありません。',
@@ -242,6 +268,11 @@ const ja: Translations = {
   splitConfirm: 'フォルダを選んで分割…',
   splitPreviewParts: (n) => `${n} 個のファイルを作成します`,
   toastSaved: (count, path) => `${count} ページを ${path} に保存しました`,
+  toastSavedWithSize: (count, before, after) => {
+    const pct = before > 0 ? Math.round(((after - before) / before) * 100) : 0;
+    const delta = pct < 0 ? `\u2212${Math.abs(pct)}%` : pct > 0 ? `+${pct}%` : '0%';
+    return `${count}ページを保存 · ${formatBytes(before)} → ${formatBytes(after)}（${delta}）`;
+  },
   toastSplitSaved: (parts, dir) => `${parts} 個の分割 PDF を ${dir} に保存しました`,
   toastEncryptedPdf: (name) => `${name}: パスワード保護された PDF にはまだ対応していません`,
   toastLoadError: (name, msg) => `${name} を読み込めませんでした: ${msg}`,

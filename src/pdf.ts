@@ -3,6 +3,7 @@ import { PDFDocument, degrees, rgb, type PDFEmbeddedPage, type PDFFont, type PDF
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfjsWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { parseHexColor, renderTextAnnotationPng } from './annotations.ts';
+import { compressImages, type CompressPreset, type Encoder } from './compress.ts';
 import { isFixedPaper, resolvePageSize, type PageSizeMode } from './pageSize.ts';
 import type { Annotation, PageItem } from './state.ts';
 import { loadSystemFont } from './systemFont.ts';
@@ -22,6 +23,7 @@ export interface LoadedPdfSource {
   pdfDoc: PDFDocument;
   pdfjsDoc: pdfjsLib.PDFDocumentProxy | null;
   pageCount: number;
+  byteLength: number;
 }
 
 export interface LoadedImageSource {
@@ -80,6 +82,7 @@ export async function loadPdfSource(
     pdfDoc,
     pdfjsDoc,
     pageCount: pdfDoc.getPageCount(),
+    byteLength: bytes.byteLength,
   };
 }
 
@@ -174,6 +177,8 @@ function normalizeDegrees(deg: number): number {
 export interface ExportOptions {
   stripMetadata: boolean;
   pageSize?: PageSizeMode;
+  compress?: CompressPreset;
+  compressEncoder?: Encoder;
 }
 
 const PX_TO_PT_96DPI = 0.75;
@@ -393,6 +398,10 @@ export async function exportPagesToPdf(
         );
       }
     }
+  }
+
+  if (options.compress && options.compress !== 'off') {
+    await compressImages(outDoc, options.compress, options.compressEncoder);
   }
 
   return outDoc.save();
