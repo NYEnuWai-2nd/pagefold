@@ -20,8 +20,13 @@ export interface Translations {
   pageSizeLabel: string;
   pageSizeTooltip: string;
   pageSizeAuto: string;
+  pageSizeA3: string;
   pageSizeA4: string;
+  pageSizeA5: string;
+  pageSizeB4: string;
+  pageSizeB5: string;
   pageSizeLetter: string;
+  pageSizeLegal: string;
   pageSizeOriginal: string;
   privacyFooter: string;
   sourcesHeading: string;
@@ -107,8 +112,13 @@ const en: Translations = {
   pageSizeLabel: 'Page size',
   pageSizeTooltip: 'Target page size when exporting',
   pageSizeAuto: 'Match first PDF page',
+  pageSizeA3: 'A3',
   pageSizeA4: 'A4',
+  pageSizeA5: 'A5',
+  pageSizeB4: 'B4 (JIS)',
+  pageSizeB5: 'B5 (JIS)',
   pageSizeLetter: 'Letter',
+  pageSizeLegal: 'Legal',
   pageSizeOriginal: 'Original size',
   privacyFooter: 'Offline. Your files never leave this computer.',
   sourcesHeading: 'Source Files',
@@ -195,8 +205,13 @@ const ja: Translations = {
   pageSizeLabel: 'ページサイズ',
   pageSizeTooltip: '書き出し時のページサイズ',
   pageSizeAuto: '最初のPDFに合わせる',
+  pageSizeA3: 'A3',
   pageSizeA4: 'A4',
+  pageSizeA5: 'A5',
+  pageSizeB4: 'B4 (JIS)',
+  pageSizeB5: 'B5 (JIS)',
   pageSizeLetter: 'Letter',
+  pageSizeLegal: 'Legal',
   pageSizeOriginal: '元のサイズ',
   privacyFooter: '完全オフライン。ファイルがこのPCの外に出ることはありません。',
   sourcesHeading: '読み込み済みファイル',

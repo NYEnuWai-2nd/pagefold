@@ -3,7 +3,7 @@ import { PDFDocument, degrees, rgb, type PDFEmbeddedPage, type PDFFont, type PDF
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfjsWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { parseHexColor, renderTextAnnotationPng } from './annotations.ts';
-import { resolvePageSize, type PageSizeMode } from './pageSize.ts';
+import { isFixedPaper, resolvePageSize, type PageSizeMode } from './pageSize.ts';
 import type { Annotation, PageItem } from './state.ts';
 import { loadSystemFont } from './systemFont.ts';
 
@@ -199,7 +199,7 @@ export async function exportPagesToPdf(
   options: ExportOptions
 ): Promise<Uint8Array> {
   const pageSizeMode: PageSizeMode = options.pageSize ?? 'auto';
-  const normalizeAllPdfPages = pageSizeMode === 'a4' || pageSizeMode === 'letter';
+  const normalizeAllPdfPages = isFixedPaper(pageSizeMode);
   const firstPdfSize = findFirstPdfPageSize(pages, sources);
 
   const outDoc = await PDFDocument.create({
