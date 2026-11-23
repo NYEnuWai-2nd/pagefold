@@ -1,6 +1,11 @@
 export type Rotation = 0 | 90 | 180 | 270;
 export type SourceKind = 'pdf' | 'image';
 
+export type Annotation =
+  | { id: string; kind: 'text'; x: number; y: number; text: string; size: number; color: string }
+  | { id: string; kind: 'rect'; x: number; y: number; w: number; h: number; color: string; stroke: number }
+  | { id: string; kind: 'highlight'; x: number; y: number; w: number; h: number; color: string };
+
 export interface SourceFileInfo {
   id: string;
   name: string;
@@ -14,6 +19,7 @@ export interface PageItem {
   sourceId: string;
   pageIndex: number; // 0-based index within the source
   rotation: Rotation; // delta rotation in degrees
+  annotations?: Annotation[];
 }
 
 export interface HistorySnapshot {
@@ -47,10 +53,17 @@ export function createInitialState(): AppState {
   };
 }
 
+function clonePage(page: PageItem): PageItem {
+  return {
+    ...page,
+    annotations: page.annotations ? page.annotations.map((a) => ({ ...a })) : undefined,
+  };
+}
+
 function cloneSnapshot(state: AppState): HistorySnapshot {
   return {
     sources: state.sources.map((s) => ({ ...s })),
-    pages: state.pages.map((p) => ({ ...p })),
+    pages: state.pages.map(clonePage),
   };
 }
 
@@ -293,7 +306,7 @@ export function undo(state: AppState): boolean {
 
   state.future.push(cloneSnapshot(state));
   state.sources = prev.sources.map((s) => ({ ...s }));
-  state.pages = prev.pages.map((p) => ({ ...p }));
+  state.pages = prev.pages.map(clonePage);
   pruneSelection(state);
   return true;
 }
@@ -304,8 +317,47 @@ export function redo(state: AppState): boolean {
 
   state.past.push(cloneSnapshot(state));
   state.sources = next.sources.map((s) => ({ ...s }));
-  state.pages = next.pages.map((p) => ({ ...p }));
+  state.pages = next.pages.map(clonePage);
   pruneSelection(state);
+  return true;
+}
+
+export function addAnnotation(state: AppState, uid: string, annotation: Annotation): boolean {
+  const page = state.pages.find((p) => p.uid === uid);
+  if (!page) return false;
+  pushHistory(state);
+  if (!page.annotations) {
+    page.annotations = [];
+  }
+  page.annotations.push({ ...annotation });
+  return true;
+}
+
+export function updateAnnotation(
+  state: AppState,
+  uid: string,
+  annotationId: string,
+  updater: (ann: Annotation) => Annotation
+): boolean {
+  const page = state.pages.find((p) => p.uid === uid);
+  if (!page || !page.annotations) return false;
+  const idx = page.annotations.findIndex((a) => a.id === annotationId);
+  if (idx === -1) return false;
+  pushHistory(state);
+  page.annotations[idx] = updater({ ...page.annotations[idx] });
+  return true;
+}
+
+export function deleteAnnotation(state: AppState, uid: string, annotationId: string): boolean {
+  const page = state.pages.find((p) => p.uid === uid);
+  if (!page || !page.annotations) return false;
+  const exists = page.annotations.some((a) => a.id === annotationId);
+  if (!exists) return false;
+  pushHistory(state);
+  page.annotations = page.annotations.filter((a) => a.id !== annotationId);
+  if (page.annotations.length === 0) {
+    delete page.annotations;
+  }
   return true;
 }
 

@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  addAnnotation,
   addSource,
   canRedo,
   canUndo,
   clearSelection,
   createInitialState,
+  deleteAnnotation,
   deleteSelected,
   getReferencedSourceIds,
   moveSelectionBy,
@@ -18,6 +20,7 @@ import {
   selectSourcePages,
   toggleSelect,
   undo,
+  updateAnnotation,
 } from '../src/state.ts';
 
 describe('state management', () => {
@@ -161,5 +164,49 @@ describe('state management', () => {
 
     selectSourcePages(state, 's2');
     expect([...state.selectedUids]).toEqual([state.pages[1].uid, state.pages[2].uid]);
+  });
+
+  it('adds, updates, and deletes annotations with undo/redo', () => {
+    const state = createInitialState();
+    addSource(state, { id: 's1', name: 'a.pdf', kind: 'pdf', pageCount: 1 });
+    const uid = state.pages[0].uid;
+
+    expect(
+      addAnnotation(state, uid, {
+        id: 'ann-1',
+        kind: 'rect',
+        x: 0.1,
+        y: 0.2,
+        w: 0.3,
+        h: 0.4,
+        color: '#d93025',
+        stroke: 2,
+      })
+    ).toBe(true);
+    expect(state.pages[0].annotations?.length).toBe(1);
+
+    expect(
+      updateAnnotation(state, uid, 'ann-1', (a) => (a.kind === 'rect' ? { ...a, x: 0.25 } : a))
+    ).toBe(true);
+    expect(state.pages[0].annotations?.[0]).toMatchObject({ x: 0.25 });
+
+    expect(deleteAnnotation(state, uid, 'ann-1')).toBe(true);
+    expect(state.pages[0].annotations).toBeUndefined();
+
+    // Undo delete
+    expect(undo(state)).toBe(true);
+    expect(state.pages[0].annotations?.[0]).toMatchObject({ id: 'ann-1', x: 0.25 });
+
+    // Undo update
+    expect(undo(state)).toBe(true);
+    expect(state.pages[0].annotations?.[0]).toMatchObject({ id: 'ann-1', x: 0.1 });
+
+    // Undo add
+    expect(undo(state)).toBe(true);
+    expect(state.pages[0].annotations).toBeUndefined();
+
+    // Redo add
+    expect(redo(state)).toBe(true);
+    expect(state.pages[0].annotations?.length).toBe(1);
   });
 });
